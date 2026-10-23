@@ -33,7 +33,8 @@ jobs:
           javac -d /tmp/host -cp "$jar" launcher/src/tv/dumbtv/home/FocusColor.java \
             launcher/src/tv/dumbtv/home/Config.java launcher/tests/FocusColorTest.java \
             launcher/src/tv/dumbtv/home/Live.java launcher/tests/LiveTest.java \
-            launcher/src/tv/dumbtv/home/Logo.java launcher/src/tv/dumbtv/home/Item.java launcher/tests/LogoTest.java \n            launcher/src/tv/dumbtv/home/Panchang.java launcher/tests/PanchangTest.java
+            launcher/src/tv/dumbtv/home/Logo.java launcher/src/tv/dumbtv/home/Item.java launcher/tests/LogoTest.java \
+            launcher/src/tv/dumbtv/home/Panchang.java launcher/tests/PanchangTest.java
           java -cp "/tmp/host:$jar" tv.dumbtv.home.FocusColorTest
           java -cp "/tmp/host:$jar" tv.dumbtv.home.LiveTest
           java -cp "/tmp/host:$jar" tv.dumbtv.home.LogoTest
