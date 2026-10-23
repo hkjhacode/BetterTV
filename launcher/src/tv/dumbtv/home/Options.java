@@ -53,7 +53,7 @@ public final class Options extends Activity {
             refresh();
         }));
         list.addView(gap());
-        list.addView(action("Apps on home screen", () -> pick(Catalog.APPS)));
+        list.addView(action("Apps in the home row", () -> pick(Catalog.APPS)));
         list.addView(action("Inputs on home screen", () -> pick(Catalog.INPUTS)));
         list.addView(action("Reset order, names and hidden tiles", this::reset));
         list.addView(action("Open Amazon's home screen", () -> {
@@ -69,7 +69,9 @@ public final class Options extends Activity {
                 + "\nSeveral wallpapers: put them in " + Config.WALLPAPERS + "/ with any names, and pick a rotation"
                 + "\nThen pick Background › Image file or Adaptive wallpaper tint. No permission is needed"
                 + "\nAdaptive wallpaper tint shows graphite until you add a wallpaper"
-                + "\nNo internet permission. No tracking, no ads, no accounts.");
+                + "\nTaglines: add tagline.<package>=Line one|Line two to that file; they rotate each visit"
+                + "\nInternet is used only for the weather and to find a YouTube news channel's live stream."
+                + " No tracking, no ads, no accounts.");
         list.addView(about);
 
         setContentView(scroll);
@@ -188,7 +190,7 @@ public final class Options extends Activity {
             on[i] = Catalog.shown(cfg, kind, items.get(i));
         }
         new AlertDialog.Builder(this, Ui.DIALOG)
-                .setTitle(Catalog.APPS.equals(kind) ? "Apps on home screen" : "Inputs on home screen")
+                .setTitle(Catalog.APPS.equals(kind) ? "Apps in the home row" : "Inputs on home screen")
                 .setMultiChoiceItems(names, on, (d, which, checked) ->
                         Catalog.setShown(cfg, kind, items.get(which), checked))
                 .setPositiveButton("Done", null)

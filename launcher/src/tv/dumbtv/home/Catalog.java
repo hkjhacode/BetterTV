@@ -19,7 +19,11 @@ import java.util.Map;
 
 /** Where tiles come from, and which of them the user wants on the home screen. */
 final class Catalog {
-    static final String APPS = "apps", INPUTS = "inputs";
+    static final String APPS = "apps", INPUTS = "inputs", NEWS = "news";
+    /** The home row: only these apps, in this order. Every other app is under More apps. */
+    static final String DOCK = "apps.dock";
+    private static final String DEFAULT_DOCK = "com.netflix.ninja,com.amazon.firetv.youtube,in.startv.hotstar,"
+            + "org.smarttube.stable,com.indiatv.livetv.androidtv,com.amazon.firebat,com.amazon.venezia";
 
     private Catalog() {}
 
@@ -87,27 +91,42 @@ final class Catalog {
         return cfg.get("name." + it.id, it.label.toString());
     }
 
+    // shortcut: an empty home row reads as "never set" and brings the default back; store a
+    // marker if someone really wants no apps on it.
+    static List<String> dock(Config cfg) {
+        List<String> out = new ArrayList<>();
+        for (String s : cfg.get(DOCK, DEFAULT_DOCK).split(",")) {
+            if (!s.trim().isEmpty()) out.add(s.trim());
+        }
+        return out;
+    }
+
     static boolean shown(Config cfg, String kind, Item it) {
-        if (cfg.list(kind + ".hide").contains(it.id)) return false;
-        return !APPS.equals(kind) || it.leanback || cfg.list("apps.show").contains(it.id);
+        if (APPS.equals(kind)) return dock(cfg).contains(it.id);
+        return !cfg.list(kind + ".hide").contains(it.id);
     }
 
     static void setShown(Config cfg, String kind, Item it, boolean on) {
+        if (APPS.equals(kind)) {
+            List<String> dock = dock(cfg);
+            dock.remove(it.id);
+            if (on) dock.add(it.id);
+            cfg.setList(DOCK, dock);
+            return;
+        }
         List<String> hide = cfg.list(kind + ".hide");
         hide.remove(it.id);
-        if (!on && (it.leanback || !APPS.equals(kind))) hide.add(it.id);
+        if (!on) hide.add(it.id);
         cfg.setList(kind + ".hide", hide);
-        if (APPS.equals(kind) && !it.leanback) {
-            List<String> show = cfg.list("apps.show");
-            show.remove(it.id);
-            if (on) show.add(it.id);
-            cfg.setList("apps.show", show);
-        }
+    }
+
+    private static List<String> order(Config cfg, String kind) {
+        return APPS.equals(kind) ? dock(cfg) : cfg.list(kind + ".order");
     }
 
     /** The shown items, in the user's order; anything never moved keeps catalog order. */
     static List<Item> visible(Config cfg, String kind, List<Item> all) {
-        List<String> order = cfg.list(kind + ".order");
+        List<String> order = order(cfg, kind);
         List<Item> out = new ArrayList<>();
         for (Item it : all) {
             if (shown(cfg, kind, it)) out.add(it);
@@ -124,9 +143,9 @@ final class Catalog {
     /** Saves {@code ids} as the new order, keeping the old positions of hidden items after them. */
     static void saveOrder(Config cfg, String kind, List<String> ids) {
         List<String> order = new ArrayList<>(ids);
-        for (String id : cfg.list(kind + ".order")) {
+        for (String id : order(cfg, kind)) {
             if (!order.contains(id)) order.add(id);
         }
-        cfg.setList(kind + ".order", order);
+        cfg.setList(APPS.equals(kind) ? DOCK : kind + ".order", order);
     }
 }

@@ -62,8 +62,13 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/dumbtv-home.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/gen" "$WORK/classes" build
 
+# build-tools ships d8 and apksigner as .bat files on Windows (Git Bash).
+tool() { if [[ -f $BT/$1.bat ]]; then echo "$BT/$1.bat"; else echo "$BT/$1"; fi; }
+ASSETS=()
+[[ -d assets ]] && ASSETS=(-A assets)
+
 "$BT/aapt2" compile --dir res -o "$WORK/res.zip"
-"$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml "$WORK/res.zip" \
+"$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml "$WORK/res.zip" "${ASSETS[@]}" \
   --min-sdk-version "$MIN_SDK" --target-sdk-version 28 \
   --version-code "$VERSION_CODE" --version-name "$VERSION_NAME" \
   --java "$WORK/gen" -o "$WORK/app.apk"
@@ -73,13 +78,17 @@ find src "$WORK/gen" -name '*.java' > "$WORK/sources.txt"
   -classpath "$JAR" -d "$WORK/classes" @"$WORK/sources.txt"
 
 find "$WORK/classes" -name '*.class' > "$WORK/classes.txt"
-"$BT/d8" --release --min-api "$MIN_SDK" --lib "$JAR" --output "$WORK" @"$WORK/classes.txt"
-(cd "$WORK" && zip -q -X app.apk classes.dex)
+"$(tool d8)" --release --min-api "$MIN_SDK" --lib "$JAR" --output "$WORK" @"$WORK/classes.txt"
+if command -v zip >/dev/null; then
+  (cd "$WORK" && zip -q -X app.apk classes.dex)
+else
+  (cd "$WORK" && "$BT/aapt" add app.apk classes.dex >/dev/null)   # Git Bash has no zip
+fi
 
 "$BT/zipalign" -f -p 4 "$WORK/app.apk" "$WORK/aligned.apk"
-"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass "pass:$KEYPASS" --key-pass "pass:$KEYPASS" \
+"$(tool apksigner)" sign --ks "$KEYSTORE" --ks-pass "pass:$KEYPASS" --key-pass "pass:$KEYPASS" \
   --out build/dumbtv-home.apk "$WORK/aligned.apk"
-"$BT/apksigner" verify build/dumbtv-home.apk
+"$(tool apksigner)" verify build/dumbtv-home.apk
 
 perms=$("$BT/aapt2" dump permissions build/dumbtv-home.apk | grep -c 'uses-permission' || true)
 printf 'built build/dumbtv-home.apk  %s bytes  %s uses-permission entries\n' \

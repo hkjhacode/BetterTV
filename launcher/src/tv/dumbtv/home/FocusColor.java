@@ -16,6 +16,15 @@ final class FocusColor {
     }
 
     static int from(Drawable art) {
+        return from(art, true);
+    }
+
+    /** The art's own brand colour, not darkened: the glow behind the home row. */
+    static int vivid(Drawable art) {
+        return from(art, false);
+    }
+
+    private static int from(Drawable art, boolean dark) {
         if (art == null || art.getConstantState() == null) return FALLBACK;
         Bitmap bitmap = null;
         try {
@@ -25,7 +34,7 @@ final class FocusColor {
             copy.draw(new Canvas(bitmap));
             int[] pixels = new int[48 * 48];
             bitmap.getPixels(pixels, 0, 48, 0, 0, 48, 48);
-            return representative(pixels);
+            return representative(pixels, dark);
         } catch (RuntimeException ignored) {
             return FALLBACK;
         } finally {
@@ -35,6 +44,10 @@ final class FocusColor {
 
     /** Hue groups favor useful colored regions over a large neutral icon background. */
     static int representative(int[] pixels) {
+        return representative(pixels, true);
+    }
+
+    static int representative(int[] pixels, boolean dark) {
         float[] weights = new float[12];
         float[] red = new float[12], green = new float[12], blue = new float[12];
         int visible = 0;
@@ -66,7 +79,7 @@ final class FocusColor {
         int b = Math.round(blue[best] / weights[best]);
         // Dark enough for white labels and the independent focus ring on top.
         float scale = 1f;
-        while (luminance(r * scale, g * scale, b * scale) > 0.12f) scale *= 0.9f;
+        while (dark && luminance(r * scale, g * scale, b * scale) > 0.12f) scale *= 0.9f;
         return 0xFF000000 | Math.round(r * scale) << 16
                 | Math.round(g * scale) << 8 | Math.round(b * scale);
     }

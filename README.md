@@ -1,3 +1,11 @@
+> **BetterTV: a fork for a 3rd-gen streaming stick (AFTSSS).** The dumbtv home
+> screen restyled after the "I hacked my TV using Claude" guide: clock and Open-Meteo weather,
+> bare top-right icons, one row of floating white app logos with a glow in the focused app's
+> colour, a live news row (Veto channels open straight into Veto's player; YouTube channels open
+> their most-watched live stream in SmartTube), More apps, and a 7-day weather screen. The changes
+> live in `launcher/`. Unlike upstream, this launcher asks for `INTERNET`, used only for the
+> weather and to find a YouTube channel's live stream. Everything else below is upstream dumbtv.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
