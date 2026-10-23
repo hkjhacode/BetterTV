@@ -1,5 +1,6 @@
 package tv.dumbtv.home;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -9,25 +10,49 @@ import java.io.File;
 
 /**
  * The home row's floating white logos. A PNG in {@code logos/<package>.png} next to home.conf
- * wins; otherwise the app's banner is turned white on transparent: whatever stands out from the
- * banner's own background becomes the logo.
+ * wins, then a bundled glyph for the usual apps; otherwise the app's banner is turned white on
+ * transparent: whatever stands out from the banner's own background becomes the logo.
  */
 final class Logo {
     static final String DIR = "logos";
     private static final int W = 320, H = 180;
-
     private Logo() {}
 
     /** Slow: call off the UI thread, after {@link Catalog#art}. */
-    static void load(Config cfg, Item it) {
+    static void load(Context c, Config cfg, Item it, int glyph) {
         File own = new File(new File(cfg.dir, DIR), it.id + ".png");
         Bitmap b = own.isFile() ? BitmapFactory.decodeFile(own.getPath()) : null;
+        if (b == null && glyph != 0) b = glyph(c.getDrawable(glyph));
         if (b == null) b = white(it.banner != null ? it.banner : it.icon);
         if (b == null) return;
         int[] px = new int[b.getWidth() * b.getHeight()];
         b.getPixels(px, 0, b.getWidth(), 0, 0, b.getWidth(), b.getHeight());
         it.logoInk = ink(px) / px.length;
         it.logo = b;
+    }
+
+    /** Draws a bundled glyph at its own proportions, at most 256 px on the long side, trimmed. */
+    private static Bitmap glyph(Drawable d) {
+        float iw = Math.max(1, d.getIntrinsicWidth()), ih = Math.max(1, d.getIntrinsicHeight());
+        float k = 256 / Math.max(iw, ih);
+        int w = Math.max(1, Math.round(iw * k)), h = Math.max(1, Math.round(ih * k));
+        Bitmap b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        d.setBounds(0, 0, w, h);
+        d.draw(new Canvas(b));
+        int[] px = new int[w * h];
+        b.getPixels(px, 0, w, 0, 0, w, h);
+        int left = w, top = h, right = 0, bottom = 0;
+        for (int i = 0; i < px.length; i++) {
+            if (px[i] >>> 24 <= 24) continue;
+            left = Math.min(left, i % w);
+            right = Math.max(right, i % w + 1);
+            top = Math.min(top, i / w);
+            bottom = Math.max(bottom, i / w + 1);
+        }
+        if (right <= left) return null;
+        Bitmap trimmed = Bitmap.createBitmap(b, left, top, right - left, bottom - top);
+        if (trimmed != b) b.recycle();
+        return trimmed;
     }
 
     private static Bitmap white(Drawable art) {
