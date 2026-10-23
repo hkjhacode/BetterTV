@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LABEL = 'Service[label=dumbtv home button, feedbackType[FEEDBACK_GENERIC]]'
+LABEL = 'Service[label=BetterTV home button, feedbackType[FEEDBACK_GENERIC]]'
 
 
 class VerifyTests(unittest.TestCase):
@@ -57,13 +57,13 @@ class VerifyTests(unittest.TestCase):
 
     def test_bound_android9_class_name_after_update(self):
         # Seen on a Fire OS 7 TV right after adb install -r: the label is not loaded yet.
-        by_class = LABEL.replace('dumbtv home button', 'tv.dumbtv.home.Guard')
+        by_class = LABEL.replace('BetterTV home button', 'tv.dumbtv.home.Guard')
         dump = f'User state[attributes:{{id=0, currentUser=true}}\n services:{{{by_class}}}]'
         result, _ = self.run_verify(dump)
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_other_class_name_does_not_pass(self):
-        other = LABEL.replace('dumbtv home button', 'tv.dumbtv.home.GuardX')
+        other = LABEL.replace('BetterTV home button', 'tv.dumbtv.home.GuardX')
         dump = f'User state[attributes:{{id=0, currentUser=true}}\n services:{{{other}}}]'
         result, _ = self.run_verify(dump)
         self.assertEqual(result.returncode, 1)

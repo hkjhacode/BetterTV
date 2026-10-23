@@ -9,6 +9,16 @@ import java.util.Map;
 /** Today's Maithili panchang from mithilapanchang.com: tithi, paksha, nakshatra and the rest. */
 final class Panchang {
     static final String URL = "https://mithilapanchang.com/mai/dainik-panchang/";
+    /** Drik Panchang's day page for New Delhi (GeoNames 1261481), near the weather's Palam. */
+    static final String DRIK = "https://www.drikpanchang.com/panchang/day-panchang.html?geoname-id=1261481";
+    private static final String[] TITHI_EN = {
+        "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami", "Shashthi", "Saptami", "Ashtami",
+        "Navami", "Dashami", "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima", "Amavasya",
+    };
+    private static final String[] TITHI_HI = {
+        "प्रतिपदा", "द्वितीया", "तृतीया", "चतुर्थी", "पंचमी", "षष्ठी", "सप्तमी", "अष्टमी",
+        "नवमी", "दशमी", "एकादशी", "द्वादशी", "त्रयोदशी", "चतुर्दशी", "पूर्णिमा", "अमावस्या",
+    };
     /** Labels as the page writes them, in the order the detail view lists them. */
     static final String[] LABELS = {
         "सप्ताहक दिन", "पक्ष", "तिथि", "नक्षत्र", "योग", "सूर्योदय", "सूर्यास्त", "राहू काल", "आजुक पर्व-उत्सव",
@@ -16,12 +26,71 @@ final class Panchang {
 
     private Panchang() {}
 
+    /** Mithila's day page, plus "तिथि (Drik)" when Drik Panchang answers too. */
     static Map<String, String> fetch() throws IOException {
-        return parse(Live.get(URL));
+        Map<String, String> p = parse(Live.get(URL));
+        try {
+            String drik = drik(Live.get(DRIK));
+            if (drik != null) p.put(DRIK_KEY, drik);
+        } catch (IOException ignored) {
+            // Mithila alone is enough
+        }
+        return p;
+    }
+
+    static final String DRIK_KEY = "तिथि (Drik, दिल्ली)";
+
+    /** "त्रयोदशी 01:36 PM तक, फिर चतुर्दशी" from Drik's day page, or null. */
+    static String drik(String html) {
+        List<String> lines = lines(html);
+        int i = lines.indexOf("Tithi");
+        if (i < 0 || i + 4 >= lines.size() || !"upto".equals(lines.get(i + 2))) return null;
+        int t = java.util.Arrays.asList(TITHI_EN).indexOf(lines.get(i + 1));
+        if (t < 0) return null;
+        String time = lines.get(i + 3) + " " + lines.get(i + 4);
+        int next = t == 14 || t == 15 ? 0 : t == 13 ? (lines.contains("Krishna Paksha") ? 15 : 14) : t + 1;
+        return TITHI_HI[t] + " " + time + " तक, फिर " + TITHI_HI[next];
     }
 
     /** Each label's value is the first text line after the line that is exactly the label. */
     static Map<String, String> parse(String html) {
+        List<String> lines = lines(html);
+        Map<String, String> out = new LinkedHashMap<>();
+        for (String label : LABELS) {
+            int i = lines.indexOf(label);
+            if (i >= 0 && i + 1 < lines.size()) out.put(label, lines.get(i + 1));
+        }
+        return out;
+    }
+
+    /** The saved panchang if it is for {@code day}, else null. One "key=value" per line. */
+    static Map<String, String> read(java.io.File f, String day) {
+        Map<String, String> out = new LinkedHashMap<>();
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(
+                new java.io.FileInputStream(f), java.nio.charset.StandardCharsets.UTF_8))) {
+            for (String l; (l = r.readLine()) != null; ) {
+                int eq = l.indexOf('=');
+                if (eq > 0) out.put(l.substring(0, eq), l.substring(eq + 1));
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return day.equals(out.remove("day")) ? out : null;
+    }
+
+    static void write(java.io.File f, String day, Map<String, String> p) {
+        try (java.io.Writer w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(f),
+                java.nio.charset.StandardCharsets.UTF_8)) {
+            w.write("day=" + day + "\n");
+            for (Map.Entry<String, String> e : p.entrySet()) {
+                w.write(e.getKey() + "=" + e.getValue().replace('\n', ' ') + "\n");
+            }
+        } catch (IOException ignored) {
+            // fetched again next time
+        }
+    }
+
+    private static List<String> lines(String html) {
         String text = html.replaceAll("(?s)<script.*?</script>|<style.*?</style>", "")
                 .replaceAll("<[^>]+>", "\n")
                 .replace("&nbsp;", " ").replace("&amp;", "&");
@@ -29,12 +98,25 @@ final class Panchang {
         for (String l : text.split("\n")) {
             if (!l.trim().isEmpty()) lines.add(l.trim());
         }
-        Map<String, String> out = new LinkedHashMap<>();
-        for (String label : LABELS) {
-            int i = lines.indexOf(label);
-            if (i >= 0 && i + 1 < lines.size()) out.put(label, lines.get(i + 1));
-        }
-        return out;
+        return lines;
+    }
+
+    /** Today's festival from Mithila's page (its first, if several), or null. */
+    static String festival(Map<String, String> p) {
+        String f = p.get("आजुक पर्व-उत्सव");
+        if (f == null || f.trim().isEmpty() || f.contains("लागू नहि")) return null;
+        return f.split(",")[0].trim();
+    }
+
+    /**
+     * The top bar's line: the tithi and when it changes, from Drik ("त्रयोदशी 01:36 PM तक"),
+     * else Mithila's own words for it ("द्वादशी मध्याह्न १२:११ बजे धरि").
+     */
+    static String tithiLine(Map<String, String> p) {
+        String d = p.get(DRIK_KEY);
+        if (d != null) return d.split(",")[0];
+        String t = p.get("तिथि");
+        return t == null ? null : t.split(",")[0].trim();
     }
 
     /**

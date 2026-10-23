@@ -1,5 +1,6 @@
 package tv.dumbtv.home;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -48,6 +49,8 @@ final class Tile extends View {
     private final TextPaint inner = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint under = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private boolean moving;
+    private ValueAnimator label;
+    private float labelShown;
 
     Tile(Context c, Item item, String kind, CharSequence title, int cardW, int cardH,
             String labels, int accent, boolean mono) {
@@ -110,6 +113,14 @@ final class Tile extends View {
         float s = focused ? FOCUS_SCALE : 1f;
         // The focused tile comes forward: it grows and draws over its neighbours.
         setZ(focused ? 1f : 0f);
+        if (label != null) label.cancel();
+        label = ValueAnimator.ofFloat(labelShown, focused ? 1f : 0f);
+        label.setDuration(focused ? 220 : 120);
+        label.addUpdateListener(a -> {
+            labelShown = (Float) a.getAnimatedValue();
+            invalidate();
+        });
+        label.start();
         animate().scaleX(s).scaleY(s).setDuration(240).setInterpolator(EASE).start();
         invalidate();
     }
@@ -149,9 +160,11 @@ final class Tile extends View {
             canvas.drawRoundRect(half, half, cardW - half, cardH - half, radius - half, radius - half, ring);
         }
         if (moving) drawArrows(canvas);
-        boolean label = (banner != null || logo != null) && (labelAlways || labelOnFocus && isFocused());
-        if (labelH > 0 && label) {
-            drawLine(canvas, under, cardW / 2f, cardH + labelH - Ui.dp(getContext(), 6));
+        boolean labelOn = (banner != null || logo != null) && labelOnFocus;
+        if (labelH > 0 && (labelAlways ? banner != null || logo != null : labelOn && labelShown > 0)) {
+            float k = labelAlways ? 1f : labelShown;
+            under.setAlpha(Math.round(242 * k));
+            drawLine(canvas, under, cardW / 2f, cardH + labelH - Ui.dp(getContext(), 6) + Ui.dp(getContext(), 6) * (1 - k));
         }
     }
 

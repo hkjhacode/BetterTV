@@ -69,7 +69,8 @@ public final class Home extends Activity {
     private int applied = -1, appsGeneration;
     private boolean resumed, landed;
     private ImageView wall;
-    private View shade, dimmer, glow, wifi, more;
+    private View shade, wash, dimmer, glow, wifi, more;
+    private String washFor;
     private LinearLayout head;
     /** Where Up, Down and Back return to: the last tile used in each row, the last top-bar item. */
     private View lastDock, lastNews, lastChip;
@@ -79,9 +80,12 @@ public final class Home extends Activity {
     private static final SimpleDateFormat ISO = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
     private static final SimpleDateFormat DAY = new SimpleDateFormat("EEEE, d MMMM", HINDI);
     private static final SimpleDateFormat WEEKDAY = new SimpleDateFormat("EEEE", HINDI);
+    private static final SimpleDateFormat DAY_EN = new SimpleDateFormat("EEEE, d MMMM", Locale.ENGLISH);
+    private static final SimpleDateFormat WEEKDAY_EN = new SimpleDateFormat("EEEE", Locale.ENGLISH);
     private TextView clock, weather, tagline, greet, date, panchang, wallTitle, wallLine;
     private Map<String, String> panchangDay;
-    private long panchangAt;
+    /** The panchang day (yyyy-MM-dd, turning at 6 AM) that {@link #panchangDay} is for. */
+    private String panchangFor;
     /** Lines above the home row until home.conf sets tagline.<package>; | separates lines that rotate per visit. */
     private static final java.util.Map<String, String> TAGLINES = new java.util.HashMap<>();
     /** The small line under a wallpaper's title; home.conf wallpaper.line.<file name> replaces one. */
@@ -122,7 +126,6 @@ public final class Home extends Activity {
     private List<Item> apps = new ArrayList<>();
     private Tile moving;
     private String wallKey;
-    private ValueAnimator glowAnimation, wallDrift;
     private int glowColor;
 
     private final BroadcastReceiver packages = new BroadcastReceiver() {
@@ -186,6 +189,8 @@ public final class Home extends Activity {
         super.onResume();
         resumed = true;
         Guard.arrived(this);
+        // put the Home button back if Fire OS dropped it (force-stop, app update)
+        Guard.sync(this);
         cfg.refresh();
         cfg.visited();
         if (cfg.version() != applied) apply();
@@ -195,9 +200,11 @@ public final class Home extends Activity {
         f.addAction(Intent.ACTION_TIMEZONE_CHANGED);
         registerReceiver(time, f);
         tick();
-        Weather.current(cfg, net, ui, weather::setText);
+        Weather.current(cfg, net, ui, text -> {
+            weather.setText(text);
+            weather.setVisibility(View.VISIBLE);
+        });
         loadPanchang();
-        if (wallDrift != null) wallDrift.resume();
         View focused = getCurrentFocus();
         if (focused instanceof Tile) focusTile((Tile) focused);
     }
@@ -211,7 +218,6 @@ public final class Home extends Activity {
     protected void onPause() {
         super.onPause();
         resumed = false;
-        if (wallDrift != null) wallDrift.pause();
         unregisterReceiver(time);
         if (moving != null) stopMoving();
     }
@@ -299,6 +305,9 @@ public final class Home extends Activity {
         root.addView(wall, new FrameLayout.LayoutParams(MATCH, MATCH));
         shade = new View(this);
         root.addView(shade, new FrameLayout.LayoutParams(MATCH, MATCH));
+        wash = new View(this);
+        wash.setAlpha(0f);
+        root.addView(wash, new FrameLayout.LayoutParams(MATCH, MATCH));
         dimmer = new View(this);
         dimmer.setBackgroundColor(0x99000000);
         dimmer.setAlpha(0f);
@@ -384,6 +393,7 @@ public final class Home extends Activity {
         when.addView(date);
         head.addView(when, new LinearLayout.LayoutParams(0, WRAP, 1f));
         weather = pill(0, "", v -> startActivity(new Intent(this, Weather.class)));
+        weather.setVisibility(View.GONE);
         head.addView(weather);
         panchang = pill(0, "पञ्चाङ्ग", v -> showPanchang());
         panchang.setVisibility(View.GONE);
@@ -399,7 +409,6 @@ public final class Home extends Activity {
 
         tagline = Ui.text(this, 34, 0xF2FFFFFF, Ui.outfitLight);
         tagline.setSingleLine();
-        tagline.setShadowLayer(dp(12), 0, dp(1), 0xCC000000);
         column.addView(tagline, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         dock = new LinearLayout(this);
@@ -801,7 +810,7 @@ public final class Home extends Activity {
         for (int i = 0; i < dock.getChildCount(); i++) {
             View v = dock.getChildAt(i);
             if (v.isFocused()) continue;
-            v.animate().scaleX(1f).scaleY(1f).alpha(1f).rotationY(0).translationY(0).setDuration(220).start();
+            v.animate().scaleX(1f).scaleY(1f).alpha(1f).translationY(0).setDuration(220).start();
         }
     }
 
@@ -819,8 +828,10 @@ public final class Home extends Activity {
         CharSequence line = Catalog.NEWS.equals(t.kind) ? it.label : tagline(it);
         if (!line.toString().equals(tagline.getText().toString())) {
             tagline.setAlpha(0f);
+            tagline.setTranslationY(dp(10));
             tagline.setText(line);
-            tagline.animate().alpha(1f).setDuration(220).start();
+            tagline.animate().alpha(1f).translationY(0).setDuration(320)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         }
         if (it.glow == 0 && (it.banner != null || it.icon != null)) {
             io.execute(() -> {
@@ -847,6 +858,7 @@ public final class Home extends Activity {
         float left = d0[0] - dock.getTranslationX();
         float shift = getResources().getDisplayMetrics().widthPixels / 2f
                 - (left + focused.getLeft() + focused.getWidth() / 2f);
+        if (!"on".equals(cfg.get(Config.CENTER))) shift = 0;
         dock.animate().translationX(shift).setDuration(320)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         for (int i = 0; i < dock.getChildCount(); i++) {
@@ -854,15 +866,13 @@ public final class Home extends Activity {
             if (v == focused) continue;
             int d = i - at, n = Math.abs(d);
             float scale = Math.max(0.62f, 1f - 0.11f * n);
-            v.setCameraDistance(dp(900));
             v.animate().scaleX(scale).scaleY(scale).alpha(Math.max(0.35f, 1f - 0.18f * n))
-                    .rotationY(Math.signum(d) * Math.min(48f, 18f + 8f * n)).translationY(0)
+                    .translationY(0)
                     .setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         }
-        focused.setCameraDistance(dp(900));
         // it comes out front: bigger than the flat row's focus, lifted a little, drawn over the rest
         focused.setZ(2f);
-        focused.animate().scaleX(1.42f).scaleY(1.42f).translationY(-dp(10)).rotationY(0).alpha(1f)
+        focused.animate().scaleX(1.42f).scaleY(1.42f).translationY(-dp(10)).alpha(1f)
                 .setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
     }
 
@@ -883,7 +893,8 @@ public final class Home extends Activity {
                 over.getLocationOnScreen(a);
                 ((View) glow.getParent()).getLocationOnScreen(b);
                 float x = a[0] - b[0] + over.getWidth() / 2f - glow.getWidth() / 2f;
-                if (over.getParent() == dock && "carousel".equals(cfg.get(Config.ROW))) {
+                if (over.getParent() == dock && "carousel".equals(cfg.get(Config.ROW))
+                        && "on".equals(cfg.get(Config.CENTER))) {
                     // the row is sliding the selected app to the centre
                     x = getResources().getDisplayMetrics().widthPixels / 2f - b[0] - glow.getWidth() / 2f;
                 }
@@ -901,15 +912,13 @@ public final class Home extends Activity {
         glow.animate().alpha(color == 0 ? 0.45f : 1f).setDuration(420).start();
         if (color == 0) return;
         int target = (color & 0x00FFFFFF) | 0x66000000;
-        if (glowAnimation != null) glowAnimation.cancel();
-        glowAnimation = ValueAnimator.ofArgb(glowColor, target);
-        glowAnimation.setDuration(420);
-        glowAnimation.addUpdateListener(v -> {
-            glowColor = (Integer) v.getAnimatedValue();
-            g.setColors(new int[] {glowColor, (glowColor & 0x00FFFFFF) | (glowColor >>> 24) / 4 << 24,
-                    glowColor & 0x00FFFFFF});
-        });
-        glowAnimation.start();
+        if (target == glowColor) return;
+        // set the gradient once and fade the view: rebuilding a screen-sized radial shader every
+        // frame was the main cause of dropped frames on this stick
+        glowColor = target;
+        g.setColors(new int[] {target, (target & 0x00FFFFFF) | 0x1A000000, target & 0x00FFFFFF});
+        glow.setAlpha(0.55f);
+        glow.animate().alpha(1f).setDuration(300).start();
     }
 
     private void focusFirst() {
@@ -928,45 +937,68 @@ public final class Home extends Activity {
         clock.setText(DateFormat.format(h24 ? "HH:mm" : "h:mm", now));
         Calendar c = Calendar.getInstance();
         String today = ISO.format(now);
-        String festival = Festivals.on(cfg, today);
-        greet.setText(festival != null ? festival + " के ढेर सिनी शुभकामना" : greeting(c.get(Calendar.HOUR_OF_DAY)));
+        String lang = cfg.get(Config.LANGUAGE);
+        String wish = Festivals.wish(cfg, lang, today);
+        greet.setText(wish != null ? wish : greeting(lang, c.get(Calendar.HOUR_OF_DAY)));
         c.add(Calendar.DAY_OF_YEAR, 7);
-        String[] next = Festivals.next(today, ISO.format(c.getTime()));
-        String line = DAY.format(now);
-        if (next != null) {
+        String[] next = Festivals.next(today, ISO.format(c.getTime()), lang);
+        boolean english = Lang.ENGLISH.equals(lang);
+        String line = (english ? DAY_EN : DAY).format(now);
+        String today2 = panchangFestival();
+        if (today2 != null) {
+            line += "   ·   " + today2;
+        } else if (next != null) {
             try {
-                // Said as a day, never a second date beside today's: काल्हि (tomorrow), परसूं, or the weekday.
+                // Said as a day, never a second date beside today's: tomorrow, day after, or the weekday.
                 Date on = ISO.parse(next[0]);
                 long days = Math.round((on.getTime() - ISO.parse(today).getTime()) / 86_400_000.0);
-                String when = days == 1 ? "काल्हि" : days == 2 ? "परसूं" : WEEKDAY.format(on);
+                String when = Lang.daysAway(lang, days);
+                if (when == null) when = (english ? WEEKDAY_EN : WEEKDAY).format(on);
                 line += "   ·   " + when + " " + next[1];
             } catch (ParseException ignored) {
                 // the built-in list is well formed
             }
         }
         date.setText(line);
+        colours(today);
         // hourly and time-of-day rotations change while the screen stays open; a no-op otherwise
         background();
     }
 
     /** Today's panchang, fetched at most every three hours while the home screen shows. */
     private void loadPanchang() {
-        if (panchangDay != null && System.currentTimeMillis() - panchangAt < 3 * 3_600_000L) return;
+        Calendar c = Calendar.getInstance();
+        if (c.get(Calendar.HOUR_OF_DAY) < 6) c.add(Calendar.DAY_OF_YEAR, -1);
+        String day = ISO.format(c.getTime());
+        if (day.equals(panchangFor)) return;
         net.execute(() -> {
-            try {
-                Map<String, String> p = Panchang.fetch();
-                String brief = Panchang.brief(p);
-                if (brief == null) return;
-                ui.post(() -> {
-                    panchangDay = p;
-                    panchangAt = System.currentTimeMillis();
-                    panchang.setText(brief);
-                    panchang.setVisibility(View.VISIBLE);
-                });
-            } catch (IOException ignored) {
-                // no network: the pill stays hidden and the next visit tries again
+            File cache = new File(cfg.dir, "panchang.txt");
+            Map<String, String> p = Panchang.read(cache, day);
+            if (p == null) {
+                try {
+                    p = Panchang.fetch();
+                    Panchang.write(cache, day, p);
+                } catch (IOException ignored) {
+                    // no network: the pill stays hidden and the next visit tries again
+                    return;
+                }
             }
+            Map<String, String> got = p;
+            String brief = Panchang.tithiLine(got);
+            if (brief == null) return;
+            ui.post(() -> {
+                panchangDay = got;
+                panchangFor = day;
+                panchang.setText(brief);
+                panchang.setVisibility(View.VISIBLE);
+                tick();
+            });
         });
+    }
+
+    /** Mithila's festival for today, if any, for the date line. */
+    private String panchangFestival() {
+        return panchangDay == null ? null : Panchang.festival(panchangDay);
     }
 
     private void showPanchang() {
@@ -983,12 +1015,36 @@ public final class Home extends Activity {
                 .show();
     }
 
-    /** In Angika; home.conf greet.morning, greet.noon, greet.evening, greet.night replace a line. */
-    private String greeting(int hour) {
-        if (hour >= 4 && hour < 12) return cfg.get("greet.morning", "भोर के प्रणाम");
-        if (hour >= 12 && hour < 16) return cfg.get("greet.noon", "दुपहरिया के प्रणाम");
-        if (hour >= 16 && hour < 20) return cfg.get("greet.evening", "साँझ के प्रणाम");
-        return cfg.get("greet.night", "रात के प्रणाम");
+    /**
+     * Options › Colours: on a festival day (or through a series like Navratri or Chhath) the screen
+     * takes a warm wash in that festival's colour; "Always colourful" keeps a saffron-to-violet wash
+     * on ordinary days too; "Calm" never colours it.
+     */
+    private void colours(String today) {
+        String mode = cfg.get(Config.COLOURS);
+        String c = "calm".equals(mode) ? null : Festivals.colour(today);
+        if (c == null && "always".equals(mode)) c = "#FF8A3D,#8E5CFF";
+        String key = mode + c;
+        if (key.equals(washFor)) return;
+        washFor = key;
+        if (c == null) {
+            wash.animate().alpha(0f).setDuration(600).start();
+            greet.setTextColor(Ui.MUTED);
+            return;
+        }
+        String[] parts = c.split(",");
+        int a = Color.parseColor(parts[0]), b = parts.length > 1 ? Color.parseColor(parts[1]) : a;
+        wash.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[] {
+            (a & 0xFFFFFF) | 0x59000000, (b & 0xFFFFFF) | 0x26000000, 0x00000000, (a & 0xFFFFFF) | 0x33000000}));
+        wash.animate().alpha(1f).setDuration(800).start();
+        // the greeting and the clock pick the colour up too
+        greet.setTextColor((a & 0xFFFFFF) | 0xE6000000);
+    }
+
+    /** Options › Language; home.conf greet.morning, greet.noon, greet.evening, greet.night replace a line. */
+    private String greeting(String lang, int hour) {
+        String key = hour >= 4 && hour < 12 ? "morning" : hour >= 12 && hour < 16 ? "noon" : hour >= 16 && hour < 20 ? "evening" : "night";
+        return cfg.get("greet." + key, Lang.greeting(lang, hour));
     }
 
     private void background() {
@@ -1006,14 +1062,26 @@ public final class Home extends Activity {
             return;
         }
         io.execute(() -> {
-            Bitmap b = decode(file, getResources().getDisplayMetrics().widthPixels,
-                    getResources().getDisplayMetrics().heightPixels);
+            // half size in each direction is enough under the shade and scrim: a quarter of the memory
+            Bitmap b = decode(file, getResources().getDisplayMetrics().widthPixels / 2,
+                    getResources().getDisplayMetrics().heightPixels / 2);
             ui.post(() -> {
                 if (!key.equals(wallKey)) return;
-                wall.setAlpha(0f);
-                wall.setImageBitmap(b);
-                wall.animate().alpha(1f).setDuration(600).start();
-                drift();
+                // crossfade from the old picture, never through black
+                android.graphics.drawable.Drawable old = wall.getDrawable();
+                android.graphics.drawable.BitmapDrawable next = new android.graphics.drawable.BitmapDrawable(getResources(), b);
+                if (old == null || old instanceof android.graphics.drawable.TransitionDrawable) {
+                    wall.setImageDrawable(next);
+                } else {
+                    android.graphics.drawable.TransitionDrawable fade = new android.graphics.drawable.TransitionDrawable(
+                            new android.graphics.drawable.Drawable[] {old, next});
+                    fade.setCrossFadeEnabled(true);
+                    wall.setImageDrawable(fade);
+                    fade.startTransition(500);
+                    wall.postDelayed(() -> {
+                        if (wall.getDrawable() == fade) wall.setImageDrawable(next);
+                    }, 600);
+                }
             });
         });
     }
@@ -1035,21 +1103,6 @@ public final class Home extends Activity {
         }
         wallTitle.setText(title);
         wallLine.setText(cfg.get("wallpaper.line." + name, WALL_LINES.containsKey(name) ? WALL_LINES.get(name) : ""));
-    }
-
-    /** A slow 1.0 to 1.06 zoom that turns around every 40 s, so the picture feels alive. */
-    private void drift() {
-        if (wallDrift != null) wallDrift.cancel();
-        wallDrift = ValueAnimator.ofFloat(1f, 1.06f);
-        wallDrift.setDuration(40_000);
-        wallDrift.setRepeatMode(ValueAnimator.REVERSE);
-        wallDrift.setRepeatCount(ValueAnimator.INFINITE);
-        wallDrift.addUpdateListener(a -> {
-            float z = (Float) a.getAnimatedValue();
-            wall.setScaleX(z);
-            wall.setScaleY(z);
-        });
-        wallDrift.start();
     }
 
     /** Full 32-bit colour, so dark gradients in the wallpaper do not band. */

@@ -73,7 +73,9 @@ public final class Guard extends AccessibilityService {
     private static PendingIntent launch(Context c) {
         Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
                 .setClass(c, Home.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                // CLEAR_TOP: Home lands on the home screen even if Weather or More apps was left open
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         return PendingIntent.getActivity(c, 0, i, PendingIntent.FLAG_UPDATE_CURRENT,
                 ActivityOptions.makeCustomAnimation(c, 0, 0).toBundle());
     }
@@ -93,6 +95,35 @@ public final class Guard extends AccessibilityService {
         amazon(c);
     }
 
+    /**
+     * Makes the Home button match Options › "Home button opens": switches this service on or off
+     * in the secure settings. Needs WRITE_SECURE_SETTINGS, which install.sh grants; without it
+     * this only switches off (disableSelf) and returns false when it could not switch on.
+     */
+    static boolean sync(Context c) {
+        boolean want = !"amazon".equals(Config.get(c).get(Config.HOME));
+        String me = new android.content.ComponentName(c, Guard.class).flattenToString();
+        android.content.ContentResolver r = c.getContentResolver();
+        String on = android.provider.Settings.Secure.getString(r, "enabled_accessibility_services");
+        java.util.List<String> list = new java.util.ArrayList<>();
+        if (on != null) {
+            for (String s : on.split(":")) {
+                if (!s.isEmpty() && !s.equals(me) && !s.equals(c.getPackageName() + "/.Guard")) list.add(s);
+            }
+        }
+        boolean has = on != null && (on.contains(me) || on.contains(c.getPackageName() + "/.Guard"));
+        if (want == has) return true;
+        if (want) list.add(me);
+        try {
+            android.provider.Settings.Secure.putString(r, "enabled_accessibility_services", android.text.TextUtils.join(":", list));
+            android.provider.Settings.Secure.putString(r, "accessibility_enabled", list.isEmpty() ? "0" : "1");
+            return true;
+        } catch (SecurityException e) {
+            if (!want && running != null) running.disableSelf();
+            return !want;
+        }
+    }
+
     static void amazon(Context c) {
         pause();
         Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
@@ -107,6 +138,9 @@ public final class Guard extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         running = this;
+        // Amazon's home may already be on screen (boot, or this app just updated): no new window
+        // event would come for it, so put ours in front once.
+        if (!"amazon".equals(Config.get(this).get(Config.HOME)) && !paused) handler.postDelayed(launch, 400);
         View view = new View(this);
         view.setVisibility(View.GONE);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(

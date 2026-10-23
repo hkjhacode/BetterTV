@@ -20,6 +20,23 @@ public final class PanchangTest {
         check("प्रदोष व्रत".equals(Panchang.brief(p)), "today's festival first");
         check("शुक्ल द्वादशी".equals(Panchang.brief(Panchang.parse(page.replace("आजुक पर्व-उत्सव", "x")))), "else the tithi");
         check(Panchang.brief(Panchang.parse("<p>nothing</p>")) == null, "no tithi, no line");
+        String drik = "<div class=\"dpTableCell dpTableKey\">Tithi</div><div><a>Trayodashi</a> <span>upto</span> 01:36 "
+                + "<span>PM</span></div><div>Paksha</div><div>Shukla Paksha</div>";
+        check("त्रयोदशी 01:36 PM तक, फिर चतुर्दशी".equals(Panchang.drik(drik)), "drik tithi and the next one");
+        check("चतुर्दशी 09:10 AM तक, फिर अमावस्या".equals(Panchang.drik(drik.replace("Trayodashi", "Chaturdashi")
+                .replace("01:36", "09:10").replace(">PM<", ">AM<").replace("Shukla", "Krishna"))), "dark half ends in amavasya");
+        check(Panchang.drik("<p>nothing</p>") == null, "no drik tithi");
+        p.put(Panchang.DRIK_KEY, "त्रयोदशी 01:36 PM तक, फिर चतुर्दशी");
+        check("त्रयोदशी 01:36 PM तक".equals(Panchang.tithiLine(p)), "top bar prefers drik");
+        try {
+            java.io.File f = java.io.File.createTempFile("panchang", ".txt");
+            Panchang.write(f, "2026-10-24", p);
+            check(p.equals(Panchang.read(f, "2026-10-24")), "cache round trip");
+            check(Panchang.read(f, "2026-10-25") == null, "a new day fetches again");
+            f.delete();
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        }
         System.out.println("PanchangTest ok");
     }
 }

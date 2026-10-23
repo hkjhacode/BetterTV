@@ -22,7 +22,7 @@ guard_bound() {
     }
     inside {
       # Never accept a similarly named service or a label in Enabled/Binding.
-      if (index($0, "Service[label=dumbtv home button,")) found = 1
+      if (index($0, "Service[label=BetterTV home button,")) found = 1
       if (index($0, "Service[label=tv.dumbtv.home.Guard,")) found = 1
       if (index($0, "}")) { seen = 1; inside = 0 }
     }
