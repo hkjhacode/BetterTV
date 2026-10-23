@@ -21,6 +21,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.text.format.DateFormat;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -44,6 +45,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -67,19 +69,62 @@ public final class Home extends Activity {
     private int applied = -1, appsGeneration;
     private boolean resumed, landed;
     private ImageView wall;
-    private View shade, dimmer, glow, wifi;
+    private View shade, dimmer, glow, wifi, more;
+    private LinearLayout head;
+    /** Where Up, Down and Back return to: the last tile used in each row, the last top-bar item. */
+    private View lastDock, lastNews, lastChip;
+    private int targetScroll;
     private ScrollView page;
     private static final Locale HINDI = new Locale("hi", "IN");
     private static final SimpleDateFormat ISO = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
     private static final SimpleDateFormat DAY = new SimpleDateFormat("EEEE, d MMMM", HINDI);
     private static final SimpleDateFormat WEEKDAY = new SimpleDateFormat("EEEE", HINDI);
-    private TextView clock, weather, tagline, greet, date;
+    private TextView clock, weather, tagline, greet, date, panchang, wallTitle, wallLine;
+    private Map<String, String> panchangDay;
+    private long panchangAt;
+    /** Lines above the home row until home.conf sets tagline.<package>; | separates lines that rotate per visit. */
+    private static final java.util.Map<String, String> TAGLINES = new java.util.HashMap<>();
+    /** The small line under a wallpaper's title; home.conf wallpaper.line.<file name> replaces one. */
+    private static final java.util.Map<String, String> WALL_LINES = new java.util.HashMap<>();
+
+    static {
+        // Lines from shows each app is known for; a different one each time you come home.
+        TAGLINES.put("com.netflix.ninja", "Say my name.|Friends don't lie.|Bella ciao.|Red light, green light."
+                + "|Kabhi kabhi lagta hai apun hi bhagwan hai.|Legen… wait for it… dary.");
+        TAGLINES.put("com.amazon.firetv.youtube", "Broadcast yourself.|Just one more video.|Like, share, subscribe.");
+        TAGLINES.put("in.startv.hotstar", "Winter is coming.|Dracarys.|Avengers, assemble.|Endure and survive."
+                + "|I am Iron Man.");
+        TAGLINES.put("org.smarttube.stable", "No ads. Just videos.|Skip nothing. There's nothing to skip.");
+        TAGLINES.put("com.indiatv.livetv.androidtv", "Aaj ki taaza khabar.|Khabar har pal.|Breaking news, live.");
+        TAGLINES.put("com.amazon.firebat", "Dekh raha hai Binod.|Ye bhi theek hai.|One ring to rule them all."
+                + "|Diabolical.|Main hoon na… Srikant Tiwari.");
+        TAGLINES.put("com.amazon.venezia", "Something new to try.|There's an app for that.");
+        WALL_LINES.put("the-batman", "I am vengeance.");
+        WALL_LINES.put("the-batman-batmobile", "Why do we fall? So we can learn to pick ourselves up.");
+        WALL_LINES.put("iron-man", "Sometimes you gotta run before you can walk.");
+        WALL_LINES.put("iron-man-suit", "I am Iron Man.");
+        WALL_LINES.put("captain-america", "I can do this all day.");
+        WALL_LINES.put("captain-america-shield", "I can do this all day.");
+        WALL_LINES.put("thor", "Bring me Thanos!");
+        WALL_LINES.put("thor-dark-world", "I'd rather be a good man than a great king.");
+        WALL_LINES.put("hulk", "That's my secret. I'm always angry.");
+        WALL_LINES.put("hulkbuster", "Avengers, assemble.");
+        WALL_LINES.put("ultron", "There are no strings on me.");
+        WALL_LINES.put("black-panther", "Wakanda forever.");
+        WALL_LINES.put("guardians-of-the-galaxy", "We are Groot.");
+        WALL_LINES.put("patrick-jane", "There's no such thing as psychics.");
+        WALL_LINES.put("red-john", "Tyger Tyger, burning bright.");
+        WALL_LINES.put("haikyuu-jump", "Fly high.");
+        WALL_LINES.put("haikyuu-court", "The view from the top.");
+        WALL_LINES.put("vivekananda", "Arise, awake, and stop not till the goal is reached.");
+        WALL_LINES.put("kalam", "Dream, dream, dream.");
+    }
     private HorizontalScrollView dockScroll;
     private LinearLayout dock, news;
     private List<Item> apps = new ArrayList<>();
     private Tile moving;
     private String wallKey;
-    private ValueAnimator glowAnimation;
+    private ValueAnimator glowAnimation, wallDrift;
     private int glowColor;
 
     private final BroadcastReceiver packages = new BroadcastReceiver() {
@@ -153,6 +198,8 @@ public final class Home extends Activity {
         registerReceiver(time, f);
         tick();
         Weather.current(cfg, net, ui, weather::setText);
+        loadPanchang();
+        if (wallDrift != null) wallDrift.resume();
         View focused = getCurrentFocus();
         if (focused instanceof Tile) focusTile((Tile) focused);
     }
@@ -166,6 +213,7 @@ public final class Home extends Activity {
     protected void onPause() {
         super.onPause();
         resumed = false;
+        if (wallDrift != null) wallDrift.pause();
         unregisterReceiver(time);
         if (moving != null) stopMoving();
     }
@@ -241,7 +289,13 @@ public final class Home extends Activity {
     }
 
     private View build() {
-        FrameLayout root = new FrameLayout(this);
+        FrameLayout root = new FrameLayout(this) {
+            @Override
+            public View focusSearch(View focused, int direction) {
+                View next = navigate(focused, direction);
+                return next != null ? next : super.focusSearch(focused, direction);
+            }
+        };
         wall = new ImageView(this);
         wall.setScaleType(ImageView.ScaleType.CENTER_CROP);
         root.addView(wall, new FrameLayout.LayoutParams(MATCH, MATCH));
@@ -256,6 +310,10 @@ public final class Home extends Activity {
         bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[] {0x00000000, 0x00000000, 0x0D000000, 0x8C000000, 0xD9000000}));
         root.addView(bottom, new FrameLayout.LayoutParams(MATCH, MATCH));
+        View top = new View(this);
+        top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] {0xB3000000, 0x66000000, 0x00000000}));
+        root.addView(top, new FrameLayout.LayoutParams(MATCH, dp(230)));
         // An oval of light that glides to sit behind the focused tile.
         glow = new View(this);
         GradientDrawable light = new GradientDrawable();
@@ -266,6 +324,20 @@ public final class Home extends Activity {
         glow.setScaleX(1.7f);
         glow.setVisibility(View.INVISIBLE);
         root.addView(glow, new FrameLayout.LayoutParams(dp(540), dp(540)));
+        LinearLayout poster = new LinearLayout(this);
+        poster.setOrientation(LinearLayout.VERTICAL);
+        poster.setGravity(Gravity.END);
+        poster.setPadding(0, dp(168), dp(56), 0);
+        wallTitle = Ui.text(this, 64, 0x1FFFFFFF, Ui.outfitMedium);
+        wallTitle.setLetterSpacing(0.12f);
+        wallTitle.setSingleLine();
+        wallTitle.setGravity(Gravity.END);
+        wallLine = Ui.text(this, 18, 0x8CFFFFFF, Ui.outfitLight);
+        wallLine.setGravity(Gravity.END);
+        wallLine.setPadding(0, dp(6), dp(6), 0);
+        poster.addView(wallTitle);
+        poster.addView(wallLine);
+        root.addView(poster, new FrameLayout.LayoutParams(MATCH, WRAP, Gravity.TOP | Gravity.END));
 
         // Two stops: the home screen itself, and below it the live news. The wallpaper darkens
         // as the page moves down.
@@ -273,6 +345,11 @@ public final class Home extends Activity {
             @Override
             protected int computeScrollDeltaToGetChildRectOnScreen(Rect r) {
                 return 0;
+            }
+
+            @Override
+            public boolean executeKeyEvent(KeyEvent e) {
+                return !vertical(e) && super.executeKeyEvent(e);
             }
         };
         page.setFocusable(false);
@@ -294,7 +371,7 @@ public final class Home extends Activity {
         int screen = getResources().getDisplayMetrics().heightPixels;
         sections.addView(column, new LinearLayout.LayoutParams(MATCH, screen - dp(34)));
 
-        LinearLayout head = new LinearLayout(this);
+        head = new LinearLayout(this);
         head.setGravity(Gravity.TOP);
         head.setClipChildren(false);
         LinearLayout when = new LinearLayout(this);
@@ -303,12 +380,16 @@ public final class Home extends Activity {
         clock = Ui.text(this, 60, Ui.TEXT, Ui.outfitLight);
         clock.setPadding(0, dp(4), 0, dp(6));
         date = Ui.text(this, 16, Ui.MUTED, Ui.outfitLight);
+        for (TextView t : new TextView[] {greet, clock, date}) t.setShadowLayer(dp(10), 0, dp(1), 0xCC000000);
         when.addView(greet);
         when.addView(clock);
         when.addView(date);
         head.addView(when, new LinearLayout.LayoutParams(0, WRAP, 1f));
         weather = pill(0, "", v -> startActivity(new Intent(this, Weather.class)));
         head.addView(weather);
+        panchang = pill(0, "पञ्चाङ्ग", v -> showPanchang());
+        panchang.setVisibility(View.GONE);
+        head.addView(panchang);
         wifi = pill(R.drawable.ic_wifi, "Wi-Fi", v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS), null));
         wifi.setId(View.generateViewId());
         head.addView(wifi);
@@ -320,6 +401,7 @@ public final class Home extends Activity {
 
         tagline = Ui.text(this, 34, 0xF2FFFFFF, Ui.outfitLight);
         tagline.setSingleLine();
+        tagline.setShadowLayer(dp(12), 0, dp(1), 0xCC000000);
         column.addView(tagline, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         dock = new LinearLayout(this);
@@ -334,6 +416,11 @@ public final class Home extends Activity {
                 int range = Math.max(0, getChildAt(0).getWidth() - getWidth());
                 int target = Math.max(0, Math.min(range, r.centerX() - getWidth() / 2));
                 return target - getScrollX();
+            }
+
+            @Override
+            public boolean executeKeyEvent(KeyEvent e) {
+                return !sideways(e) && super.executeKeyEvent(e);
             }
         };
         dockScroll.setFocusable(false);
@@ -360,7 +447,12 @@ public final class Home extends Activity {
         news.setClipChildren(false);
         news.setPadding(dp(14), dp(10), dp(14), dp(10));
         news.setClipToPadding(false);
-        HorizontalScrollView newsScroll = new HorizontalScrollView(this);
+        HorizontalScrollView newsScroll = new HorizontalScrollView(this) {
+            @Override
+            public boolean executeKeyEvent(KeyEvent e) {
+                return !sideways(e) && super.executeKeyEvent(e);
+            }
+        };
         newsScroll.setFocusable(false);
         newsScroll.setHorizontalScrollBarEnabled(false);
         newsScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -370,6 +462,7 @@ public final class Home extends Activity {
         below.addView(newsScroll, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         TextView more = Ui.text(this, 13, Ui.TEXT, Ui.outfitMedium);
+        this.more = more;
         more.setText("More apps");
         more.setPadding(dp(18), dp(8), dp(18), dp(8));
         more.setFocusable(true);
@@ -440,11 +533,58 @@ public final class Home extends Activity {
                 ((ImageView) view).setColorFilter(ink);
             }
             if (has) {
+                flatten();
+                lastChip = view;
                 tagline.setText("");
                 light(0, null);
                 scrollTo(false);
             }
         });
+    }
+
+    /**
+     * The remote moves in straight lines: Left and Right stay inside a row and stop at its ends;
+     * Up and Down go between the top bar, the home row, the live row and More apps, landing on the
+     * item last used there. Anything else falls back to Android's own search.
+     */
+    private View navigate(View from, int dir) {
+        boolean side = dir == View.FOCUS_LEFT || dir == View.FOCUS_RIGHT;
+        ViewGroup row = from.getParent() instanceof ViewGroup ? (ViewGroup) from.getParent() : null;
+        if (side && (row == head || row == dock || row == news)) {
+            int i = row.indexOfChild(from) + (dir == View.FOCUS_LEFT ? -1 : 1);
+            return i >= 0 && i < row.getChildCount() ? row.getChildAt(i) : from;
+        }
+        if (from == more) {
+            return dir == View.FOCUS_UP ? in(news, lastNews) : from;
+        }
+        if (row == head) {
+            return dir == View.FOCUS_DOWN ? in(dock, lastDock) : from;
+        }
+        if (row == dock) {
+            if (dir == View.FOCUS_UP) return lastChip != null ? lastChip : wifi;
+            if (dir == View.FOCUS_DOWN) return in(news, lastNews);
+        }
+        if (row == news) {
+            if (dir == View.FOCUS_UP) return in(dock, lastDock);
+            if (dir == View.FOCUS_DOWN) return more;
+        }
+        return null;
+    }
+
+    private static boolean vertical(KeyEvent e) {
+        int k = e.getKeyCode();
+        return k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
+                || k == KeyEvent.KEYCODE_PAGE_UP || k == KeyEvent.KEYCODE_PAGE_DOWN || k == KeyEvent.KEYCODE_SPACE;
+    }
+
+    private static boolean sideways(KeyEvent e) {
+        return e.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT || e.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT;
+    }
+
+    /** {@code last} if it is still in {@code row}, else the row's first item, else nothing. */
+    private static View in(ViewGroup row, View last) {
+        if (last != null && last.getParent() == row) return last;
+        return row.getChildCount() > 0 ? row.getChildAt(0) : null;
     }
 
     private GradientDrawable idleChip() {
@@ -659,11 +799,23 @@ public final class Home extends Activity {
     }
 
     /** The tagline and the glow follow the focused tile. */
+    private void flatten() {
+        for (int i = 0; i < dock.getChildCount(); i++) {
+            View v = dock.getChildAt(i);
+            if (v.isFocused()) continue;
+            v.animate().scaleX(1f).scaleY(1f).alpha(1f).rotationY(0).translationY(0).setDuration(220).start();
+        }
+    }
+
     private void scrollTo(boolean below) {
-        page.smoothScrollTo(0, below ? page.getChildAt(0).getHeight() - page.getHeight() : 0);
+        targetScroll = below ? Math.max(0, page.getChildAt(0).getHeight() - page.getHeight()) : 0;
+        page.smoothScrollTo(0, targetScroll);
     }
 
     private void focusTile(Tile t) {
+        if (Catalog.NEWS.equals(t.kind)) flatten();
+        if (Catalog.NEWS.equals(t.kind)) lastNews = t;
+        else lastDock = t;
         Item it = t.item;
         scrollTo(Catalog.NEWS.equals(t.kind));
         CharSequence line = Catalog.NEWS.equals(t.kind) ? it.label : tagline(it);
@@ -681,11 +833,35 @@ public final class Home extends Activity {
             });
         }
         light(it.glow, t);
+        if (Catalog.APPS.equals(t.kind) && "carousel".equals(cfg.get(Config.ROW))) carousel(t);
+    }
+
+    /**
+     * Experiment (Options › Home row style › Carousel): the focused logo is biggest and in front;
+     * the others shrink, dim and turn away a little more with each step from it, like a cover flow.
+     */
+    private void carousel(Tile focused) {
+        int at = dock.indexOfChild(focused);
+        for (int i = 0; i < dock.getChildCount(); i++) {
+            View v = dock.getChildAt(i);
+            if (v == focused) continue;
+            int d = i - at, n = Math.abs(d);
+            float scale = Math.max(0.62f, 1f - 0.11f * n);
+            v.setCameraDistance(dp(900));
+            v.animate().scaleX(scale).scaleY(scale).alpha(Math.max(0.35f, 1f - 0.18f * n))
+                    .rotationY(Math.signum(d) * Math.min(48f, 18f + 8f * n)).translationY(0)
+                    .setDuration(260).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+        }
+        focused.setCameraDistance(dp(900));
+        // it comes out front: bigger than the flat row's focus, lifted a little, drawn over the rest
+        focused.setZ(2f);
+        focused.animate().scaleX(1.42f).scaleY(1.42f).translationY(-dp(10)).rotationY(0).alpha(1f)
+                .setDuration(300).setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
     }
 
     /** One line per app from home.conf {@code tagline.<package>}; several, split by |, rotate per visit. */
     private CharSequence tagline(Item it) {
-        String lines = cfg.get("tagline." + it.id, null);
+        String lines = cfg.get("tagline." + it.id, TAGLINES.get(it.id));
         if (lines == null) return "";
         String[] each = lines.split("\\|");
         return each[(int) (cfg.visits() % each.length)].trim();
@@ -700,7 +876,8 @@ public final class Home extends Activity {
                 over.getLocationOnScreen(a);
                 ((View) glow.getParent()).getLocationOnScreen(b);
                 float x = a[0] - b[0] + over.getWidth() / 2f - glow.getWidth() / 2f;
-                float y = a[1] - b[1] + over.getHeight() / 2f - glow.getHeight() / 2f;
+                // where the tile will sit once the page has scrolled, not where it is mid-scroll
+                float y = a[1] + page.getScrollY() - targetScroll - b[1] + over.getHeight() / 2f - glow.getHeight() / 2f;
                 if (glow.getVisibility() != View.VISIBLE) {
                     glow.setTranslationX(x);
                     glow.setTranslationY(y);
@@ -761,6 +938,40 @@ public final class Home extends Activity {
         background();
     }
 
+    /** Today's panchang, fetched at most every three hours while the home screen shows. */
+    private void loadPanchang() {
+        if (panchangDay != null && System.currentTimeMillis() - panchangAt < 3 * 3_600_000L) return;
+        net.execute(() -> {
+            try {
+                Map<String, String> p = Panchang.fetch();
+                String brief = Panchang.brief(p);
+                if (brief == null) return;
+                ui.post(() -> {
+                    panchangDay = p;
+                    panchangAt = System.currentTimeMillis();
+                    panchang.setText(brief);
+                    panchang.setVisibility(View.VISIBLE);
+                });
+            } catch (IOException ignored) {
+                // no network: the pill stays hidden and the next visit tries again
+            }
+        });
+    }
+
+    private void showPanchang() {
+        if (panchangDay == null) return;
+        StringBuilder b = new StringBuilder();
+        for (Map.Entry<String, String> e : panchangDay.entrySet()) {
+            b.append(e.getKey()).append(":  ").append(e.getValue()).append("\n\n");
+        }
+        b.append("mithilapanchang.com");
+        new AlertDialog.Builder(this, Ui.DIALOG)
+                .setTitle("आजुक पञ्चाङ्ग")
+                .setMessage(b.toString())
+                .setPositiveButton("OK", null)
+                .show();
+    }
+
     /** In Angika; home.conf greet.morning, greet.noon, greet.evening, greet.night replace a line. */
     private String greeting(int hour) {
         if (hour >= 4 && hour < 12) return cfg.get("greet.morning", "भोर के प्रणाम");
@@ -775,6 +986,7 @@ public final class Home extends Activity {
         wall.setBackgroundColor(cfg.background());
         int dim = Integer.parseInt(cfg.get(Config.DIM));
         shade.setBackgroundColor(file == null ? Color.TRANSPARENT : Color.argb(dim * 255 / 100, 0, 0, 0));
+        caption(file);
         String key = file == null ? null : file.getPath() + ":" + file.lastModified();
         if (key == null ? wallKey == null : key.equals(wallKey)) return;
         wallKey = key;
@@ -786,9 +998,47 @@ public final class Home extends Activity {
             Bitmap b = decode(file, getResources().getDisplayMetrics().widthPixels,
                     getResources().getDisplayMetrics().heightPixels);
             ui.post(() -> {
-                if (key.equals(wallKey)) wall.setImageBitmap(b);
+                if (!key.equals(wallKey)) return;
+                wall.setAlpha(0f);
+                wall.setImageBitmap(b);
+                wall.animate().alpha(1f).setDuration(600).start();
+                drift();
             });
         });
+    }
+
+    /** The wallpaper's name as poster type ("the-batman.png" is THE BATMAN) and its line, if known. */
+    private void caption(File file) {
+        if (file == null || "off".equals(cfg.get("wallpaper.text", "on"))) {
+            wallTitle.setText("");
+            wallLine.setText("");
+            return;
+        }
+        String name = file.getName().replaceFirst("\\.[^.]+$", "");
+        String title = name.replace('-', ' ').toUpperCase(Locale.ROOT);
+        // one line that always fits: shrink the type until the whole title is on screen
+        float room = getResources().getDisplayMetrics().widthPixels - dp(130);
+        wallTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 64);
+        while (wallTitle.getPaint().measureText(title) > room && wallTitle.getTextSize() > dp(24)) {
+            wallTitle.setTextSize(TypedValue.COMPLEX_UNIT_PX, wallTitle.getTextSize() * 0.92f);
+        }
+        wallTitle.setText(title);
+        wallLine.setText(cfg.get("wallpaper.line." + name, WALL_LINES.containsKey(name) ? WALL_LINES.get(name) : ""));
+    }
+
+    /** A slow 1.0 to 1.06 zoom that turns around every 40 s, so the picture feels alive. */
+    private void drift() {
+        if (wallDrift != null) wallDrift.cancel();
+        wallDrift = ValueAnimator.ofFloat(1f, 1.06f);
+        wallDrift.setDuration(40_000);
+        wallDrift.setRepeatMode(ValueAnimator.REVERSE);
+        wallDrift.setRepeatCount(ValueAnimator.INFINITE);
+        wallDrift.addUpdateListener(a -> {
+            float z = (Float) a.getAnimatedValue();
+            wall.setScaleX(z);
+            wall.setScaleY(z);
+        });
+        wallDrift.start();
     }
 
     /** Full 32-bit colour, so dark gradients in the wallpaper do not band. */
