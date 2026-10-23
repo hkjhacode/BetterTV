@@ -78,6 +78,21 @@ public final class Guard extends AccessibilityService {
                 ActivityOptions.makeCustomAnimation(c, 0, 0).toBundle());
     }
 
+    /** True while this service is switched on, so HOME comes here. */
+    static boolean holdsHome() {
+        return running != null;
+    }
+
+    /**
+     * Gives HOME back to Amazon for good: the service switches itself off (it stays off after a
+     * restart) and Amazon's home opens. install.sh, or the TV's accessibility settings, turn it on
+     * again.
+     */
+    static void release(Context c) {
+        if (running != null) running.disableSelf();
+        amazon(c);
+    }
+
     static void amazon(Context c) {
         pause();
         Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)

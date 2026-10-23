@@ -6,6 +6,8 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Plain HTTPS reads, and which of a YouTube channel's live streams most people are watching. */
 final class Live {
@@ -45,6 +47,34 @@ final class Live {
             }
         }
         return best;
+    }
+
+    /**
+     * Channels from a YouTube channel search page, as {id, name, avatar URL} (avatar may be
+     * empty). The avatar is asked for at 176 px instead of the page's 88.
+     */
+    static List<String[]> channels(String page) {
+        List<String[]> out = new ArrayList<>();
+        String mark = "{\"channelRenderer\":{\"channelId\":\"";
+        for (int i = page.indexOf(mark); i >= 0; i = page.indexOf(mark, i + mark.length())) {
+            int id = i + mark.length(), idEnd = page.indexOf('"', id);
+            String name = field(page, i, "\"title\":{\"simpleText\":\"");
+            String thumb = field(page, i, "\"thumbnails\":[{\"url\":\"");
+            if (idEnd < 0 || name == null) continue;
+            if (thumb == null) thumb = "";
+            else if (thumb.startsWith("//")) thumb = "https:" + thumb;
+            out.add(new String[] {page.substring(id, idEnd), name, thumb.replace("=s88-", "=s176-")});
+        }
+        return out;
+    }
+
+    /** The JSON string value after {@code key} within 3000 characters of {@code from}, or null. */
+    private static String field(String page, int from, String key) {
+        int k = page.indexOf(key, from);
+        if (k < 0 || k - from > 3000) return null;
+        int start = k + key.length(), end = page.indexOf('"', start);
+        // JSON writes & inside URLs as the six characters \\u0026
+        return end < 0 ? null : page.substring(start, end).replace("\\u0026", "&");
     }
 
     /** "7.9K" is 7900, "1,234" is 1234; -1 when it is not a count. */

@@ -20,6 +20,14 @@ public final class LiveTest {
         String page = lockup("Hkxo-Wb03z8", "173") + lockup("Nq2wYlWFucg", "7.9K") + lockup("5_bOHoAwlIE", "2.3K");
         check("Nq2wYlWFucg".equals(Live.mostWatched(page)), "highest viewer count wins");
         check(Live.mostWatched("{\"contentId\":\"abcdefghijk\",\"content\":\"12 views\"}") == null, "nothing live");
+        String search = "x{\"channelRenderer\":{\"channelId\":\"UCRWFSbif-RFENbBrSiez1DA\",\"title\":{\"simpleText\":\"ABP NEWS\"},"
+                + "\"thumbnail\":{\"thumbnails\":[{\"url\":\"//yt3.ggpht.com/abc=s88-c-k\"}]}}}"
+                + "{\"channelRenderer\":{\"channelId\":\"UCx\",\"title\":{\"simpleText\":\"No Avatar\"}}}";
+        java.util.List<String[]> found = Live.channels(search);
+        check(found.size() == 2, "two channels");
+        check("UCRWFSbif-RFENbBrSiez1DA".equals(found.get(0)[0]) && "ABP NEWS".equals(found.get(0)[1]), "id and name");
+        check("https://yt3.ggpht.com/abc=s176-c-k".equals(found.get(0)[2]), "bigger avatar URL");
+        check("".equals(found.get(1)[2]), "missing avatar");
         System.out.println("LiveTest ok");
     }
 }
