@@ -33,7 +33,7 @@ final class Catalog {
             case "com.netflix.ninja": return R.drawable.logo_netflix;
             case "com.amazon.firetv.youtube": return R.drawable.logo_youtube;
             case "org.smarttube.stable": return R.drawable.logo_smarttube;
-            case "in.startv.hotstar": return R.drawable.logo_star;
+            case "in.startv.hotstar": return R.drawable.logo_hotstar;
             case "com.amazon.venezia": return R.drawable.logo_apps;
             case "com.amazon.firebat": return R.drawable.logo_prime;
             default: return 0;
