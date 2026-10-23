@@ -31,21 +31,4 @@ final class Rain {
         }
         return null;
     }
-
-    /** The US EPA band of an AQI number, as MSN Weather words it. */
-    static String aqiWord(int usAqi) {
-        if (usAqi <= 50) return "Good";
-        if (usAqi <= 100) return "Moderate";
-        if (usAqi <= 150) return "Unhealthy for sensitive groups";
-        if (usAqi <= 200) return "Unhealthy";
-        if (usAqi <= 300) return "Very unhealthy";
-        return "Hazardous";
-    }
-
-    /** Fraction of the moon lit tonight (0 new, 1 full) from the synodic month since a known new moon. */
-    static double moonLit(long epochMillis) {
-        double days = (epochMillis - 947182440000L) / 86_400_000.0; // new moon 2000-01-06 18:14 UTC
-        double age = ((days % 29.530588853) + 29.530588853) % 29.530588853;
-        return (1 - Math.cos(2 * Math.PI * age / 29.530588853)) / 2;
-    }
 }
