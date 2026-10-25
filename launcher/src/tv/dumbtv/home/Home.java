@@ -68,7 +68,7 @@ public final class Home extends Activity {
     private static final Locale HINDI = new Locale("hi", "IN");
     private static final SimpleDateFormat ISO = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
     private static final SimpleDateFormat DAY = new SimpleDateFormat("EEEE, d MMMM", HINDI);
-    private static final SimpleDateFormat SHORT = new SimpleDateFormat("d MMMM", HINDI);
+    private static final SimpleDateFormat WEEKDAY = new SimpleDateFormat("EEEE", HINDI);
     private TextView clock, weather, tagline, greet, date;
     private HorizontalScrollView dockScroll;
     private LinearLayout dock, news;
@@ -626,7 +626,11 @@ public final class Home extends Activity {
         String line = DAY.format(now);
         if (next != null) {
             try {
-                line += "   ·   " + SHORT.format(ISO.parse(next[0])) + ", " + next[1];
+                // Said as a day, never a second date beside today's: काल्हि (tomorrow), परसूं, or the weekday.
+                Date on = ISO.parse(next[0]);
+                long days = Math.round((on.getTime() - ISO.parse(today).getTime()) / 86_400_000.0);
+                String when = days == 1 ? "काल्हि" : days == 2 ? "परसूं" : WEEKDAY.format(on);
+                line += "   ·   " + when + " " + next[1];
             } catch (ParseException ignored) {
                 // the built-in list is well formed
             }
