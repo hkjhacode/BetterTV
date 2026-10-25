@@ -17,8 +17,16 @@ final class Ui {
     static final int DIALOG = android.R.style.Theme_DeviceDefault_Dialog_Alert;
     static final Typeface LIGHT = Typeface.create("sans-serif-light", Typeface.NORMAL);
     static final Typeface MEDIUM = Typeface.create("sans-serif-medium", Typeface.NORMAL);
+    /** Outfit (SIL OFL, assets/OFL.txt), bundled; set by {@link #fonts} before the first screen. */
+    static Typeface outfitLight = LIGHT, outfitMedium = MEDIUM;
 
     private Ui() {}
+
+    static void fonts(Context c) {
+        if (outfitLight != LIGHT) return;
+        outfitLight = Typeface.createFromAsset(c.getAssets(), "outfit-300.ttf");
+        outfitMedium = Typeface.createFromAsset(c.getAssets(), "outfit-500.ttf");
+    }
 
     static int dp(Context c, float v) {
         return Math.round(v * c.getResources().getDisplayMetrics().density);

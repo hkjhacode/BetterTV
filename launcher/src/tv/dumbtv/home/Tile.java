@@ -1,7 +1,10 @@
 package tv.dumbtv.home;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -13,17 +16,28 @@ import android.text.TextPaint;
 import android.text.TextUtils;
 import android.view.View;
 
-/** A card drawn in one pass: banner, or icon plus name, or an input name; focus ring on top. */
+/**
+ * A card drawn in one pass: banner, or icon plus name, or an input name. Focus only grows it;
+ * the ring is kept for move mode. A mono tile stays black and white until focused.
+ */
 final class Tile extends View {
-    private static final float FOCUS_SCALE = 1.08f;
+    private static final float FOCUS_SCALE = 1.12f;
+    private static final ColorMatrixColorFilter GRAY;
+
+    static {
+        ColorMatrix m = new ColorMatrix();
+        m.setSaturation(0);
+        GRAY = new ColorMatrixColorFilter(m);
+    }
 
     final Item item;
     final String kind;
     private final CharSequence title;
     private final int cardW, cardH, labelH;
-    private final boolean labelAlways, labelOnFocus;
+    private final boolean labelAlways, labelOnFocus, mono;
     private final float radius, stroke;
-    private final RectF card = new RectF();
+    private final RectF card = new RectF(), logoBox = new RectF();
+    private final Paint logoPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
     private final Path clip = new Path();
     private final Path arrow = new Path();
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -34,13 +48,14 @@ final class Tile extends View {
     private boolean moving;
 
     Tile(Context c, Item item, String kind, CharSequence title, int cardW, int cardH,
-            String labels, int accent) {
+            String labels, int accent, boolean mono) {
         super(c);
         this.item = item;
         this.kind = kind;
         this.title = title;
         this.cardW = cardW;
         this.cardH = cardH;
+        this.mono = mono;
         boolean app = Catalog.APPS.equals(kind);
         labelH = app ? Ui.dp(c, 26) : 0;
         labelAlways = "always".equals(labels);
@@ -58,7 +73,7 @@ final class Tile extends View {
         inner.setTextAlign(Paint.Align.CENTER);
         inner.setTextSize(Ui.dp(c, app ? 14 : 17));
         under.setColor(Ui.TEXT);
-        under.setTypeface(Ui.MEDIUM);
+        under.setTypeface(Ui.outfitMedium);
         under.setTextAlign(Paint.Align.CENTER);
         under.setTextSize(Ui.dp(c, 13));
 
@@ -98,10 +113,14 @@ final class Tile extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         Drawable banner = item.banner, icon = item.icon;
+        Bitmap logo = item.logo;
         canvas.save();
         canvas.clipPath(clip);
-        canvas.drawRect(card, fill);
-        if (banner != null) {
+        if (logo == null) canvas.drawRect(card, fill);
+        if (logo != null) {
+            drawLogo(canvas, logo);
+        } else if (banner != null) {
+            if (mono) banner.setColorFilter(isFocused() ? null : GRAY);
             banner.setBounds(0, 0, cardW, cardH);
             banner.draw(canvas);
         } else if (icon != null) {
@@ -120,16 +139,34 @@ final class Tile extends View {
             float r = Ui.dp(getContext(), 3.5f);
             canvas.drawCircle(cardW - r * 3, r * 3, r, dot);
         }
-        if (isFocused() || moving) {
+        if (moving) {
             float half = stroke / 2;
             ring.setPathEffect(moving ? new DashPathEffect(new float[] {stroke * 3, stroke * 2}, 0) : null);
             canvas.drawRoundRect(half, half, cardW - half, cardH - half, radius - half, radius - half, ring);
         }
         if (moving) drawArrows(canvas);
-        boolean label = banner != null && (labelAlways || labelOnFocus && isFocused());
+        boolean label = (banner != null || logo != null) && (labelAlways || labelOnFocus && isFocused());
         if (labelH > 0 && label) {
             drawLine(canvas, under, cardW / 2f, cardH + labelH - Ui.dp(getContext(), 6));
         }
+    }
+
+    /**
+     * Fits the logo in the card, then sizes it by visual weight: a solid logo is drawn smaller
+     * than a thin one so both look equally big. Never stretched.
+     */
+    private void drawLogo(Canvas canvas, Bitmap logo) {
+        float boxW = cardW * 0.82f, boxH = cardH * 0.62f;
+        float fit = Math.min(boxW / logo.getWidth(), boxH / logo.getHeight());
+        float w = logo.getWidth() * fit, h = logo.getHeight() * fit;
+        float ink = Math.max(0.05f, item.logoInk) * w * h;
+        float s = Math.max(0.55f, Math.min(1f, (float) Math.sqrt(0.2f * boxW * boxH / ink)));
+        // A logo cut from a square launcher icon carries the icon's own frame; drawn full width it looks oversized.
+        if (item.banner == null) s *= 0.72f;
+        w *= s;
+        h *= s;
+        logoBox.set((cardW - w) / 2, (cardH - h) / 2, (cardW + w) / 2, (cardH + h) / 2);
+        canvas.drawBitmap(logo, null, logoBox, logoPaint);
     }
 
     private void drawLine(Canvas canvas, TextPaint paint, float x, float baseline) {

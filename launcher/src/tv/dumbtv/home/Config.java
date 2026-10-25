@@ -224,6 +224,10 @@ final class Config {
         visits++;
     }
 
+    long visits() {
+        return visits;
+    }
+
     /** Steps the rotation forward by one, so the next wallpaper shows now. */
     void nextWallpaper() {
         set(OFFSET, String.valueOf(offset() + 1));
