@@ -39,9 +39,13 @@ final class Channels {
     static final String AVATARS = "yt";
     /** Your five news channels lead the row until you move something. */
     private static final String DEFAULT_ORDER = "https://ndtv-veto.akamaized.net/vglive-sk-834057/main.m3u8,"
+            + "yt:UCt4t-jeY85JegMlZ-E5UWtA,"
             + "https://veto.akamaized.net/v1/vglive-sk-274906/main.m3u8,"
+            + "https://ndtv-veto.akamaized.net/vglive-sk-722277/main.m3u8,"
+            + "yt:UCYPvAwZP8pZhSMW8qs7cVCw,"
             + "https://veto.akamaized.net/v1/vglive-sk-479089/main.m3u8,"
-            + "yt:UCt4t-jeY85JegMlZ-E5UWtA,yt:UCYPvAwZP8pZhSMW8qs7cVCw";
+            + "https://nn-veto.akamaized.net/national/master_nnna_veto.m3u8,"
+            + "https://ndtvprofit-veto.akamaized.net/ndtvprofit/master_1.m3u8";
 
     static final class Channel {
         final String id, name, veto, youtube;

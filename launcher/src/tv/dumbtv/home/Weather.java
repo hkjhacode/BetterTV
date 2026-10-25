@@ -233,7 +233,6 @@ public final class Weather extends Activity {
         Ui.fonts(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(0xFF0C0C0E);
         page.setPadding(dp(56), dp(40), dp(56), dp(32));
 
         place = Ui.text(this, 18, Ui.MUTED, Ui.outfitMedium);
@@ -263,7 +262,7 @@ public final class Weather extends Activity {
         page.addView(change, new LinearLayout.LayoutParams(WRAP, WRAP));
 
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
-        scroll.setBackgroundColor(0xFF0C0C0E);
+        scroll.setBackground(Ui.backdrop(this, cfg, 0xFF0C0C0E));
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(page);
         setContentView(scroll);
@@ -349,7 +348,7 @@ public final class Weather extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(16), dp(12), dp(16), dp(12));
-        box.setBackground(Ui.round(0x14FFFFFF, dp(14)));
+        box.setBackground(Ui.glassy(cfg) ? Ui.glass(dp(14), dp(1)) : Ui.round(0x14FFFFFF, dp(14)));
         TextView a = Ui.text(this, 12, Ui.FAINT, Ui.outfitMedium), b = Ui.text(this, 26, Ui.TEXT, Ui.outfitLight),
                 s = Ui.text(this, 12, Ui.MUTED, Ui.outfitLight);
         a.setText(title.toUpperCase(Locale.ROOT));
@@ -381,7 +380,7 @@ public final class Weather extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setPadding(dp(24), dp(8), dp(24), 0);
         box.addView(field, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, WRAP));
-        AlertDialog d = new AlertDialog.Builder(this, Ui.DIALOG)
+        AlertDialog d = new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("Weather location")
                 .setView(box)
                 .setPositiveButton("Search", (dialog, w) -> find(field.getText().toString()))
@@ -403,7 +402,7 @@ public final class Weather extends Activity {
         String[] names = new String[PLACES.length + 1];
         for (int i = 0; i < PLACES.length; i++) names[i] = PLACES[i][0] + ", " + PLACES[i][1];
         names[names.length - 1] = "Search another place…";
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("Weather location")
                 .setItems(names, (d, which) -> {
                     if (which == PLACES.length) {
@@ -452,7 +451,7 @@ public final class Weather extends Activity {
             }
             names[i] = s.toString();
         }
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("Pick a place")
                 .setItems(names, (d, which) -> {
                     JSONObject r = results.optJSONObject(which);

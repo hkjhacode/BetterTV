@@ -112,10 +112,16 @@ final class Config {
             new String[] {"bing", "openmeteo"},
             new String[] {"Bing (MSN), Open-Meteo if it fails", "Open-Meteo only (official, free)"});
 
-    static final Choice[] CHOICES = {HOME, MOTION, LANGUAGE, WEATHER, COLOURS, ROW, CENTER, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
+    static final Choice GLASS = new Choice("glass", "Glassy look", "off",
+            new String[] {"off", "on"},
+            new String[] {"Off", "On"});
+
+    static final Choice[] CHOICES = {HOME, MOTION, GLASS, LANGUAGE, WEATHER, COLOURS, ROW, CENTER, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
 
     /** Folder of wallpapers, next to home.conf, that Background › Image file rotates through. */
     static final String WALLPAPERS = "wallpapers";
+    /** home.conf: the one wallpaper folder to show; empty shows them all. */
+    static final String FOLDER = "wallpaper.folder";
     private static final String OFFSET = "wallpaper.offset";
 
     private static final int[] ACCENTS = {
@@ -303,19 +309,37 @@ final class Config {
         return tagged ? fit : null;
     }
 
-    List<File> wallpapers() {
-        List<File> out = new ArrayList<>();
+    /** Themed subfolders of wallpapers/ (temples, mountains, ...), sorted. */
+    List<String> wallpaperFolders() {
+        List<String> out = new ArrayList<>();
         File[] files = new File(dir, WALLPAPERS).listFiles();
-        if (files == null) return out;
-        for (File f : files) {
-            String n = f.getName().toLowerCase(Locale.ROOT);
-            if (f.isFile() && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png")
-                    || n.endsWith(".webp"))) {
-                out.add(f);
-            }
+        if (files != null) {
+            for (File f : files) if (f.isDirectory()) out.add(f.getName());
         }
         Collections.sort(out);
         return out;
+    }
+
+    /** The pictures in wallpapers/ and its folders, or in one folder when Options › Wallpaper folder picks one. */
+    List<File> wallpapers() {
+        List<File> out = new ArrayList<>();
+        String only = get(FOLDER, "");
+        File root = new File(dir, WALLPAPERS);
+        collect(only.isEmpty() ? root : new File(root, only), true, out);
+        Collections.sort(out);
+        return out;
+    }
+
+    private static void collect(File folder, boolean deep, List<File> out) {
+        File[] files = folder.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            String n = f.getName().toLowerCase(Locale.ROOT);
+            if (f.isDirectory() && deep) collect(f, false, out);
+            else if (f.isFile() && (n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".webp"))) {
+                out.add(f);
+            }
+        }
     }
 
     File wallpaper() {

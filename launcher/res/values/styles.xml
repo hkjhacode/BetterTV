@@ -9,6 +9,11 @@
         <item name="android:windowAnimationStyle">@style/Screens</item>
     </style>
 
+    <style name="GlassDialog" parent="android:Theme.DeviceDefault.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/glass_dialog</item>
+        <item name="android:backgroundDimAmount">0.45</item>
+    </style>
+
     <style name="Screens" parent="@android:style/Animation.Activity">
         <item name="android:activityOpenEnterAnimation">@anim/screen_in</item>
         <item name="android:activityOpenExitAnimation">@anim/screen_out</item>

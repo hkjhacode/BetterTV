@@ -34,13 +34,14 @@ jobs:
             launcher/src/tv/dumbtv/home/Config.java launcher/tests/FocusColorTest.java \
             launcher/src/tv/dumbtv/home/Live.java launcher/tests/LiveTest.java \
             launcher/src/tv/dumbtv/home/Logo.java launcher/src/tv/dumbtv/home/Item.java launcher/tests/LogoTest.java \
-            launcher/src/tv/dumbtv/home/Panchang.java launcher/tests/PanchangTest.java             launcher/src/tv/dumbtv/home/Rain.java launcher/src/tv/dumbtv/home/Lang.java launcher/tests/RainTest.java             launcher/src/tv/dumbtv/home/Msn.java launcher/tests/MsnTest.java
+            launcher/src/tv/dumbtv/home/Panchang.java launcher/tests/PanchangTest.java             launcher/src/tv/dumbtv/home/Rain.java launcher/src/tv/dumbtv/home/Lang.java launcher/tests/RainTest.java             launcher/src/tv/dumbtv/home/Msn.java launcher/tests/MsnTest.java             launcher/src/tv/dumbtv/home/Festivals.java launcher/tests/FestivalsTest.java
           java -cp "/tmp/host:$jar" tv.dumbtv.home.FocusColorTest
           java -cp "/tmp/host:$jar" tv.dumbtv.home.LiveTest
           java -cp "/tmp/host:$jar" tv.dumbtv.home.LogoTest
           java -cp "/tmp/host:$jar" tv.dumbtv.home.PanchangTest
           java -cp "/tmp/host:$jar" tv.dumbtv.home.RainTest
           java -cp "/tmp/host:$jar" tv.dumbtv.home.MsnTest
+          java -cp "/tmp/host:$jar" tv.dumbtv.home.FestivalsTest launcher/assets/festivals.tsv
       - name: the release apk installs on fire os 6
         run: |
           min=$("$ANDROID_HOME/build-tools/34.0.0/aapt2" dump badging launcher/build/dumbtv-home.apk | sed -nE "s/^(minSdkVersion|sdkVersion):'([0-9]+)'.*/\2/p")

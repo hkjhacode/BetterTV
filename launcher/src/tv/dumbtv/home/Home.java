@@ -73,6 +73,7 @@ public final class Home extends Activity {
     private boolean resumed, landed;
     private ImageView wall;
     private View shade, wash, dimmer, glow, wifi, more;
+    private FrameLayout shelf;
     /** The opening / welcome-back curtain; {@link #away} is set while another app is in front. */
     private FrameLayout curtain;
     private ImageView curtainLogo;
@@ -87,6 +88,7 @@ public final class Home extends Activity {
     private ScrollView page;
     private static final Locale HINDI = new Locale("hi", "IN");
     private static final SimpleDateFormat ISO = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
+    private static final SimpleDateFormat NOW = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT);
     private static final SimpleDateFormat DAY = new SimpleDateFormat("EEEE, d MMMM", HINDI);
     private static final SimpleDateFormat WEEKDAY = new SimpleDateFormat("EEEE", HINDI);
     private static final SimpleDateFormat DAY_EN = new SimpleDateFormat("EEEE, d MMMM", Locale.ENGLISH);
@@ -156,6 +158,7 @@ public final class Home extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         Crash.install(this);
+        Festivals.load(this);
         Future<List<Item>> catalog = io.submit(() -> Catalog.apps(this));
         cfg = Config.get(this);
         Ui.fonts(this);
@@ -397,8 +400,11 @@ public final class Home extends Activity {
         page.setFocusable(false);
         page.setVerticalScrollBarEnabled(false);
         page.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        page.setOnScrollChangeListener((v, x, y, ox, oy) ->
-                dimmer.setAlpha(Math.min(1f, y / (float) Math.max(1, v.getHeight() / 2))));
+        page.setOnScrollChangeListener((v, x, y, ox, oy) -> {
+            dimmer.setAlpha(Math.min(1f, y / (float) Math.max(1, v.getHeight() / 2)));
+            // the wallpaper's title stays put while the rows scroll up: let it go before they meet
+            poster.setAlpha(Math.max(0f, 1f - y / (float) Math.max(1, v.getHeight() / 4)));
+        });
         root.addView(page, new FrameLayout.LayoutParams(MATCH, MATCH));
         content = page;
         LinearLayout sections = new LinearLayout(this);
@@ -450,7 +456,9 @@ public final class Home extends Activity {
         dock = new LinearLayout(this);
         dock.setClipChildren(false);
         dock.setClipToPadding(false);
-        dock.setPadding(dp(4), dp(16), dp(4), dp(4));
+        // room below for the focused tile's name: the tile grows 18% around its middle, which pushes
+        // the name about 10dp past the row, and the scroll view cuts off whatever leaves its bounds
+        dock.setPadding(dp(4), dp(16), dp(4), dp(16));
         dockScroll = new HorizontalScrollView(this) {
             /** Keeps the focused tile in view with a little room, except near either end. */
             @Override
@@ -472,7 +480,12 @@ public final class Home extends Activity {
         dockScroll.setClipChildren(false);
         dockScroll.setClipToPadding(false);
         dockScroll.addView(dock, new FrameLayout.LayoutParams(WRAP, WRAP));
-        column.addView(dockScroll, new LinearLayout.LayoutParams(MATCH, WRAP));
+        // Glassy look: a frosted shelf the app row floats on (shown in apply())
+        shelf = new FrameLayout(this);
+        shelf.setClipChildren(false);
+        shelf.setPadding(0, dp(6), 0, dp(10));
+        shelf.addView(dockScroll, new FrameLayout.LayoutParams(MATCH, WRAP));
+        column.addView(shelf, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         LinearLayout below = new LinearLayout(this);
         below.setOrientation(LinearLayout.VERTICAL);
@@ -510,11 +523,11 @@ public final class Home extends Activity {
         more.setPadding(dp(18), dp(8), dp(18), dp(8));
         more.setFocusable(true);
         more.setClickable(true);
-        more.setBackground(Ui.round(0x1FFFFFFF, dp(16)));
+        more.setBackground(glassy() ? Ui.glass(dp(16), dp(1)) : Ui.round(0x1FFFFFFF, dp(16)));
         more.setOnClickListener(v -> own(new Intent(this, Apps.class)));
         more.setOnFocusChangeListener((v, has) -> {
             v.animate().scaleX(has ? 1.1f : 1f).scaleY(has ? 1.1f : 1f).setDuration(200).start();
-            v.setBackground(Ui.round(has ? 0xE6FFFFFF : 0x1FFFFFFF, dp(16)));
+            v.setBackground(has ? Ui.round(0xE6FFFFFF, dp(16)) : glassy() ? Ui.glass(dp(16), dp(1)) : Ui.round(0x1FFFFFFF, dp(16)));
             more.setTextColor(has ? 0xFF000000 : Ui.TEXT);
             if (has) {
                 light(0, null);
@@ -632,13 +645,24 @@ public final class Home extends Activity {
     }
 
     private GradientDrawable idleChip() {
+        if (glassy()) return Ui.glass(dp(19), dp(1));
         GradientDrawable g = Ui.round(0x1AFFFFFF, dp(19));
         g.setStroke(Math.max(1, dp(1)), 0x24FFFFFF);
         return g;
     }
 
+    private boolean glassy() {
+        return Ui.glassy(cfg);
+    }
+
     private void apply() {
         applied = cfg.version();
+        shelf.setBackground(glassy() ? Ui.glass(dp(28), dp(1)) : null);
+        shelf.setPadding(0, dp(glassy() ? 10 : 6), 0, dp(glassy() ? 8 : 0));
+        for (int i = 0; i < head.getChildCount(); i++) {
+            View chip = head.getChildAt(i);
+            if (chip.isFocusable() && !chip.isFocused()) chip.setBackground(idleChip());
+        }
         renderDock();
         background();
         tick();
@@ -748,7 +772,7 @@ public final class Home extends Activity {
     private void channelMenu(Tile t) {
         if (!(t.getTag() instanceof Channels.Channel)) return;
         Channels.Channel c = (Channels.Channel) t.getTag();
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle(Channels.label(cfg, c))
                 .setItems(new String[] {"Move", "Rename", "Remove from this row"}, (d, which) -> {
                     if (which == 0) {
@@ -792,7 +816,7 @@ public final class Home extends Activity {
         }
         String[] names = new String[Math.min(10, results.size())];
         for (int i = 0; i < names.length; i++) names[i] = results.get(i)[1];
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("Pick the channel")
                 .setItems(names, (d, which) -> {
                     String[] ch = results.get(which);
@@ -816,7 +840,7 @@ public final class Home extends Activity {
         FrameLayout box = new FrameLayout(this);
         box.setPadding(dp(24), dp(8), dp(24), 0);
         box.addView(field);
-        AlertDialog d = new AlertDialog.Builder(this, Ui.DIALOG)
+        AlertDialog d = new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle(title)
                 .setView(box)
                 .setPositiveButton("OK", (dialog, w) -> {
@@ -997,6 +1021,8 @@ public final class Home extends Activity {
             }
         }
         date.setText(line);
+        // the tithi changes during the day: follow it every minute
+        if (panchangDay != null) panchang.setText(Panchang.tithiLine(panchangDay, NOW.format(now)));
         colours(today);
         // hourly and time-of-day rotations change while the screen stays open; a no-op otherwise
         background();
@@ -1013,7 +1039,7 @@ public final class Home extends Activity {
             Map<String, String> p = Panchang.read(cache, day);
             if (p == null) {
                 try {
-                    p = Panchang.fetch();
+                    p = Panchang.fetch(day);
                     Panchang.write(cache, day, p);
                 } catch (IOException ignored) {
                     // no network: the pill stays hidden and the next visit tries again
@@ -1021,31 +1047,30 @@ public final class Home extends Activity {
                 }
             }
             Map<String, String> got = p;
-            String brief = Panchang.tithiLine(got);
-            if (brief == null) return;
+            if (!got.containsKey("drik.end") && !got.containsKey("तिथि")) return;
             ui.post(() -> {
                 panchangDay = got;
                 panchangFor = day;
-                panchang.setText(brief);
                 panchang.setVisibility(View.VISIBLE);
                 tick();
             });
         });
     }
 
-    /** Mithila's festival for today, if any, for the date line. */
+    /** Mithila's festival for today, if any, for the date line; none between midnight and 6 AM, when the panchang is still yesterday's. */
     private String panchangFestival() {
-        return panchangDay == null ? null : Panchang.festival(panchangDay);
+        return panchangDay == null || !ISO.format(new Date()).equals(panchangFor) ? null : Panchang.festival(panchangDay);
     }
 
     private void showPanchang() {
         if (panchangDay == null) return;
         StringBuilder b = new StringBuilder();
         for (Map.Entry<String, String> e : panchangDay.entrySet()) {
-            b.append(e.getKey()).append(":  ").append(e.getValue()).append("\n\n");
+            // one line each, so the whole day fits on the screen with its OK button
+            if (!e.getKey().startsWith("drik.")) b.append(e.getKey()).append(":  ").append(e.getValue()).append("\n");
         }
-        b.append("mithilapanchang.com");
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        b.append("\nmithilapanchang.com · drikpanchang.com");
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("आजुक पञ्चाङ्ग")
                 .setMessage(b.toString())
                 .setPositiveButton("OK", null)
@@ -1107,6 +1132,7 @@ public final class Home extends Activity {
                 // crossfade from the old picture, never through black
                 android.graphics.drawable.Drawable old = wall.getDrawable();
                 android.graphics.drawable.BitmapDrawable next = new android.graphics.drawable.BitmapDrawable(getResources(), b);
+                Ui.wall = b;
                 if (old == null || old instanceof android.graphics.drawable.TransitionDrawable) {
                     wall.setImageDrawable(next);
                 } else {
@@ -1271,7 +1297,7 @@ public final class Home extends Activity {
     }
 
     private void menu(Tile t) {
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle(Catalog.label(cfg, t.item))
                 .setItems(new String[] {"Move", "Rename", "Remove from home row", "App info"}, (d, which) -> {
                     switch (which) {
@@ -1305,7 +1331,7 @@ public final class Home extends Activity {
         box.setPadding(dp(24), dp(8), dp(24), 0);
         box.addView(field);
         String key = "name." + t.item.id;
-        AlertDialog d = new AlertDialog.Builder(this, Ui.DIALOG)
+        AlertDialog d = new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("Rename")
                 .setView(box)
                 .setPositiveButton("Save", (dialog, w) -> {

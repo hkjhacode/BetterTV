@@ -22,12 +22,21 @@ public final class PanchangTest {
         check(Panchang.brief(Panchang.parse("<p>nothing</p>")) == null, "no tithi, no line");
         String drik = "<div class=\"dpTableCell dpTableKey\">Tithi</div><div><a>Trayodashi</a> <span>upto</span> 01:36 "
                 + "<span>PM</span></div><div>Paksha</div><div>Shukla Paksha</div>";
-        check("त्रयोदशी 01:36 PM तक, फिर चतुर्दशी".equals(Panchang.drik(drik)), "drik tithi and the next one");
-        check("चतुर्दशी 09:10 AM तक, फिर अमावस्या".equals(Panchang.drik(drik.replace("Trayodashi", "Chaturdashi")
-                .replace("01:36", "09:10").replace(">PM<", ">AM<").replace("Shukla", "Krishna"))), "dark half ends in amavasya");
-        check(Panchang.drik("<p>nothing</p>") == null, "no drik tithi");
-        p.put(Panchang.DRIK_KEY, "त्रयोदशी 01:36 PM तक, फिर चतुर्दशी");
-        check("त्रयोदशी 01:36 PM तक".equals(Panchang.tithiLine(p)), "top bar prefers drik");
+        String[] t = Panchang.drik(drik, "2026-10-24");
+        check("त्रयोदशी".equals(t[0]) && "2026-10-24 13:36".equals(t[1]) && "चतुर्दशी".equals(t[2]), "drik tithi, its end and the next one");
+        t = Panchang.drik(drik.replace("Trayodashi", "Chaturdashi").replace("01:36", "09:10").replace(">PM<", ">AM<").replace("Shukla", "Krishna"), "2026-10-24");
+        check("अमावस्या".equals(t[2]), "dark half ends in amavasya");
+        t = Panchang.drik(drik.replace("01:36 ", "01:20 ").replace(">PM<", ">AM<").replace("</span></div><div>Paksha", "</span>, <b>Oct 25</b></div><div>Paksha"), "2026-10-24");
+        check("2026-10-25 01:20".equals(t[1]), "an end after midnight is the next day");
+        check(Panchang.drik("<p>nothing</p>", "2026-10-24") == null, "no drik tithi");
+        p.put("drik.name", "चतुर्दशी");
+        p.put("drik.end", "2026-10-25 11:55");
+        p.put("drik.next", "पूर्णिमा");
+        p.put("drik.next.end", "2026-10-26 09:40");
+        check("चतुर्दशी 11:55 AM तक".equals(Panchang.tithiLine(p, "2026-10-25 08:00")), "the tithi in force");
+        check("पूर्णिमा कल 09:40 AM तक".equals(Panchang.tithiLine(p, "2026-10-25 17:47")), "then the next one, ending tomorrow");
+        check("पूर्णिमा 09:40 AM तक".equals(Panchang.tithiLine(p, "2026-10-26 02:00")), "after midnight it ends today");
+        check(Panchang.tithiLine(p, "2026-10-26 10:00").startsWith("द्वादशी"), "past both: Mithila's words");
         try {
             java.io.File f = java.io.File.createTempFile("panchang", ".txt");
             Panchang.write(f, "2026-10-24", p);

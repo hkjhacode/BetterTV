@@ -37,7 +37,7 @@ public final class Apps extends Activity {
         scroll.setFocusable(false);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setClipChildren(false);
-        scroll.setBackgroundColor(cfg.background());
+        scroll.setBackground(Ui.backdrop(this, cfg, cfg.background()));
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setClipChildren(false);
@@ -103,7 +103,7 @@ public final class Apps extends Activity {
     }
 
     private void add(Item it, List<Item> all) {
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle(Catalog.label(cfg, it))
                 .setItems(new String[] {"Add to home row"}, (d, w) -> {
                     Catalog.setShown(cfg, Catalog.APPS, it, true);

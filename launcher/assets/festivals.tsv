@@ -1,0 +1,45 @@
+# start	end	hindi	colour	english	blessing	blessing-en  (from Drik Panchang, Patna; work/gen_festivals.py)
+2026-10-03	2026-10-03	जितिया	#F4B400	Jitiya		
+2026-10-11	2026-10-19	नवरात्रि	#E53935	Navratri	जय माता दी	Jai Mata Di
+2026-10-19	2026-10-19	दुर्गा अष्टमी	#E53935	Durga Ashtami	जय माता दी	Jai Mata Di
+2026-10-20	2026-10-20	विजयादशमी	#FF8F00	Vijayadashami	जय श्री राम	Jai Shri Ram
+2026-10-25	2026-10-25	कोजगरा	#AFC3FF	Kojagara	जय माँ लक्ष्मी	Jai Maa Lakshmi
+2026-10-29	2026-10-29	करवा चौथ	#E2384D	Karwa Chauth		
+2026-11-06	2026-11-06	धनतेरस	#F4B400	Dhanteras	जय धन्वन्तरि	Jai Dhanvantari
+2026-11-08	2026-11-08	दीपावली · काली पूजा	#FF9A1F	Diwali · Kali Puja	जय माँ काली	Jai Maa Kali
+2026-11-09	2026-11-09	गोवर्धन पूजा	#6BBF59	Govardhan Puja	जय गोवर्धन नाथ	Jai Govardhan Nath
+2026-11-11	2026-11-11	भैया दूज	#FF6F91	Bhai Dooj		
+2026-11-13	2026-11-16	छठ महापर्व	#FF7A1A	Chhath	जय छठी मईया	Jai Chhathi Maiya
+2026-11-20	2026-11-20	देवउठनी एकादशी	#F4B400	Dev Uthani Ekadashi	जय श्री हरि	Jai Shri Hari
+2026-11-24	2026-11-24	कार्तिक पूर्णिमा · सामा चकेवा	#AFC3FF	Kartik Purnima	हर हर गंगे	Har Har Gange
+2026-12-14	2026-12-14	विवाह पंचमी	#FF4F8B	Vivah Panchami	जय सिया राम	Jai Siya Ram
+2027-01-15	2027-01-15	तिला संक्रांति	#FFB347	Makar Sankranti		
+2027-02-11	2027-02-11	सरस्वती पूजा	#FFD23F	Saraswati Puja	जय माँ सरस्वती	Jai Maa Saraswati
+2027-03-06	2027-03-06	महाशिवरात्रि	#7C83FD	Maha Shivaratri	हर हर महादेव	Har Har Mahadev
+2027-03-21	2027-03-21	होलिका दहन	#FF7A1A	Holika Dahan		
+2027-03-22	2027-03-22	होली	#FF4FD8	Holi	रंग बरसे	Rang Barse
+2027-04-07	2027-04-14	चैती नवरात्रि	#E53935	Chaitra Navratri	जय माता दी	Jai Mata Di
+2027-04-10	2027-04-13	चैती छठ	#FF7A1A	Chaiti Chhath	जय छठी मईया	Jai Chhathi Maiya
+2027-04-15	2027-04-15	रामनवमी	#FF8F00	Ram Navami	जय श्री राम	Jai Shri Ram
+2027-04-20	2027-04-20	हनुमान जयंती	#FF7043	Hanuman Jayanti	जय बजरंगबली	Jai Bajrangbali
+2027-05-09	2027-05-09	अक्षय तृतीया	#F4B400	Akshaya Tritiya		
+2027-06-04	2027-06-04	वट सावित्री	#6BBF59	Vat Savitri		
+2027-08-17	2027-08-17	रक्षाबंधन	#FF6F91	Raksha Bandhan		
+2027-08-25	2027-08-25	कृष्ण जन्माष्टमी	#3F7BFF	Janmashtami	जय श्री कृष्ण	Jai Shri Krishna
+2027-09-03	2027-09-03	हरतालिका तीज	#E2384D	Hartalika Teej		
+2027-09-04	2027-09-04	गणेश चतुर्थी · चौरचन	#FF8F00	Ganesh Chaturthi	गणपति बप्पा मोरया	Ganpati Bappa Morya
+2027-09-17	2027-09-17	विश्वकर्मा पूजा	#4FC3F7	Vishwakarma Puja		
+2027-09-23	2027-09-23	जितिया	#F4B400	Jitiya		
+2027-09-30	2027-10-08	नवरात्रि	#E53935	Navratri	जय माता दी	Jai Mata Di
+2027-10-07	2027-10-07	दुर्गा अष्टमी	#E53935	Durga Ashtami	जय माता दी	Jai Mata Di
+2027-10-09	2027-10-09	विजयादशमी	#FF8F00	Vijayadashami	जय श्री राम	Jai Shri Ram
+2027-10-14	2027-10-14	कोजगरा	#AFC3FF	Kojagara	जय माँ लक्ष्मी	Jai Maa Lakshmi
+2027-10-18	2027-10-18	करवा चौथ	#E2384D	Karwa Chauth		
+2027-10-27	2027-10-27	धनतेरस	#F4B400	Dhanteras	जय धन्वन्तरि	Jai Dhanvantari
+2027-10-29	2027-10-29	दीपावली · काली पूजा	#FF9A1F	Diwali · Kali Puja	जय माँ काली	Jai Maa Kali
+2027-10-30	2027-10-30	गोवर्धन पूजा	#6BBF59	Govardhan Puja	जय गोवर्धन नाथ	Jai Govardhan Nath
+2027-10-31	2027-10-31	भैया दूज	#FF6F91	Bhai Dooj		
+2027-11-02	2027-11-05	छठ महापर्व	#FF7A1A	Chhath	जय छठी मईया	Jai Chhathi Maiya
+2027-11-10	2027-11-10	देवउठनी एकादशी	#F4B400	Dev Uthani Ekadashi	जय श्री हरि	Jai Shri Hari
+2027-11-14	2027-11-14	कार्तिक पूर्णिमा · सामा चकेवा	#AFC3FF	Kartik Purnima	हर हर गंगे	Har Har Gange
+2027-12-03	2027-12-03	विवाह पंचमी	#FF4F8B	Vivah Panchami	जय सिया राम	Jai Siya Ram

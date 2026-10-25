@@ -28,16 +28,16 @@ public final class Options extends Activity {
 
     private final List<Runnable> refreshers = new ArrayList<>();
     private Config cfg;
+    private ScrollView scroll;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         cfg = Config.get(this);
 
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         scroll.setFocusable(false);
         scroll.setVerticalScrollBarEnabled(false);
-        scroll.setBackgroundColor(0xFF0C0C0E);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(56), dp(40), dp(56), dp(40));
@@ -49,6 +49,7 @@ public final class Options extends Activity {
         list.addView(title);
 
         for (Config.Choice c : Config.CHOICES) list.addView(choice(c));
+        list.addView(action("Wallpaper folder", this::folders));
         list.addView(action("Next wallpaper", () -> {
             cfg.nextWallpaper();
             refresh();
@@ -88,7 +89,9 @@ public final class Options extends Activity {
         refresh();
     }
 
+    /** Repaints every row and the background, so a change (the glassy look, the accent) shows at once. */
     private void refresh() {
+        scroll.setBackground(Ui.backdrop(this, cfg, 0xFF0C0C0E));
         for (Runnable r : refreshers) r.run();
     }
 
@@ -167,6 +170,12 @@ public final class Options extends Activity {
 
     private void style(View row) {
         StateListDrawable bg = new StateListDrawable();
+        if (Ui.glassy(cfg)) {
+            bg.addState(new int[] {android.R.attr.state_focused}, Ui.glassLit(dp(14), dp(1), cfg.accent()));
+            bg.addState(new int[0], Ui.glass(dp(14), dp(1)));
+            row.setBackground(bg);
+            return;
+        }
         bg.addState(new int[] {android.R.attr.state_focused},
                 Ui.round((cfg.accent() & 0x00FFFFFF) | 0x33000000, dp(10)));
         bg.addState(new int[0], Ui.round(0x00000000, dp(10)));
@@ -195,11 +204,25 @@ public final class Options extends Activity {
             names[i] = Catalog.label(cfg, items.get(i));
             on[i] = Catalog.shown(cfg, kind, items.get(i));
         }
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle(Catalog.APPS.equals(kind) ? "Apps in the home row" : "Inputs on home screen")
                 .setMultiChoiceItems(names, on, (d, which, checked) ->
                         Catalog.setShown(cfg, kind, items.get(which), checked))
                 .setPositiveButton("Done", null)
+                .show();
+    }
+
+    /** All folders, or just one: temples, mountains, Bihar, ... (the subfolders of wallpapers/). */
+    private void folders() {
+        List<String> names = cfg.wallpaperFolders();
+        names.add(0, "All folders");
+        String now = cfg.get(Config.FOLDER, "");
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
+                .setTitle("Wallpaper folder")
+                .setSingleChoiceItems(names.toArray(new String[0]), Math.max(0, names.indexOf(now)), (d, which) -> {
+                    cfg.set(Config.FOLDER, which == 0 ? null : names.get(which));
+                    d.dismiss();
+                })
                 .show();
     }
 
@@ -216,7 +239,7 @@ public final class Options extends Activity {
                 text = "Could not read " + f;
             }
         }
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("Crash reports")
                 .setMessage(text + "\n\nFile: " + f)
                 .setPositiveButton("OK", null)
@@ -225,7 +248,7 @@ public final class Options extends Activity {
     }
 
     private void reset() {
-        new AlertDialog.Builder(this, Ui.DIALOG)
+        new AlertDialog.Builder(this, Ui.dialog(cfg))
                 .setTitle("Reset the home screen layout?")
                 .setMessage("Order, names and hidden tiles go back to default. Colors and sizes stay.")
                 .setPositiveButton("Reset", (d, w) -> cfg.removePrefix("name.", "apps.", "inputs.", "live."))
