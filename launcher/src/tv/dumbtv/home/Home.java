@@ -12,6 +12,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -35,6 +36,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -46,6 +49,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 
 /**
  * The home screen: time and weather top left, bare icons top right, then a tagline, one row of
@@ -229,6 +233,7 @@ public final class Home extends Activity {
         if (code == KeyEvent.KEYCODE_MENU) {
             View f = getCurrentFocus();
             if (f instanceof Tile && Catalog.APPS.equals(((Tile) f).kind)) menu((Tile) f);
+            else if (f instanceof Tile && Catalog.NEWS.equals(((Tile) f).kind)) channelMenu((Tile) f);
             else startActivity(new Intent(this, Options.class));
             return true;
         }
@@ -355,7 +360,14 @@ public final class Home extends Activity {
         news.setClipChildren(false);
         news.setPadding(dp(14), dp(10), dp(14), dp(10));
         news.setClipToPadding(false);
-        below.addView(news, new LinearLayout.LayoutParams(MATCH, WRAP));
+        HorizontalScrollView newsScroll = new HorizontalScrollView(this);
+        newsScroll.setFocusable(false);
+        newsScroll.setHorizontalScrollBarEnabled(false);
+        newsScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        newsScroll.setClipChildren(false);
+        newsScroll.setClipToPadding(false);
+        newsScroll.addView(news, new FrameLayout.LayoutParams(WRAP, WRAP));
+        below.addView(newsScroll, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         TextView more = Ui.text(this, 13, Ui.TEXT, Ui.outfitMedium);
         more.setText("More apps");
@@ -508,20 +520,129 @@ public final class Home extends Activity {
         else if (keep != null || getCurrentFocus() == null || !landed) focusFirst();
     }
 
+    /** The live row, then a + card that adds a YouTube channel. */
     private void renderNews() {
-        for (Channels.Channel c : Channels.ALL) {
-            Item it = new Item(c.name, c.name, null);
-            it.banner = getDrawable(c.art).mutate();
-            it.glow = c.color;
-            Tile t = new Tile(this, it, Catalog.NEWS, c.name, dp(118), dp(66), "never", cfg.accent(), true);
+        if (moving != null && Catalog.NEWS.equals(moving.kind)) stopMoving();
+        View focused = getCurrentFocus();
+        Object keep = focused instanceof Tile && Catalog.NEWS.equals(((Tile) focused).kind) ? focused.getTag() : null;
+        String keepId = keep instanceof Channels.Channel ? ((Channels.Channel) keep).id : null;
+        news.removeAllViews();
+        View restore = null;
+        for (Channels.Channel c : Channels.all(cfg)) {
+            String name = Channels.label(cfg, c);
+            Item it = new Item(c.id, name, null);
+            File face = c.youtube != null ? Channels.avatar(cfg, c.youtube) : null;
+            if (c.art != 0) it.banner = getDrawable(c.art).mutate();
+            else if (face != null && face.isFile()) it.banner = new BitmapDrawable(getResources(), face.getPath());
+            Tile t = newsTile(it, name);
+            t.setTag(c);
             t.setOnClickListener(v -> Channels.open(this, c, net, ui));
-            t.setOnFocusChangeListener((v, has) -> {
-                if (has) focusTile((Tile) v);
+            t.setOnLongClickListener(v -> {
+                channelMenu((Tile) v);
+                return true;
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(WRAP, WRAP);
-            lp.rightMargin = dp(16);
-            news.addView(t, lp);
+            if (c.id.equals(keepId)) restore = t;
         }
+        Tile add = newsTile(new Item("add", "+  YouTube channel", null), "+  YouTube channel");
+        add.setTag("add");
+        add.setOnClickListener(v -> addChannel());
+        if ("add".equals(keep)) restore = add;
+        if (restore != null) restore.requestFocus();
+    }
+
+    private Tile newsTile(Item it, String name) {
+        Tile t = new Tile(this, it, Catalog.NEWS, name, dp(118), dp(66), "never", cfg.accent(), true);
+        t.setOnFocusChangeListener((v, has) -> {
+            if (has) focusTile((Tile) v);
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(WRAP, WRAP);
+        lp.rightMargin = dp(16);
+        news.addView(t, lp);
+        return t;
+    }
+
+    private void channelMenu(Tile t) {
+        if (!(t.getTag() instanceof Channels.Channel)) return;
+        Channels.Channel c = (Channels.Channel) t.getTag();
+        new AlertDialog.Builder(this, Ui.DIALOG)
+                .setTitle(Channels.label(cfg, c))
+                .setItems(new String[] {"Move", "Rename", "Remove from this row"}, (d, which) -> {
+                    if (which == 0) {
+                        moving = t;
+                        t.setMoving(true);
+                    } else if (which == 1) {
+                        ask("Rename", Channels.label(cfg, c), name -> {
+                            Channels.rename(cfg, c, name);
+                            renderNews();
+                        });
+                    } else {
+                        Channels.remove(cfg, c);
+                        renderNews();
+                    }
+                })
+                .show();
+    }
+
+    /** Search YouTube for a channel by name, pick one, and it joins the live row. */
+    private void addChannel() {
+        ask("Add a YouTube channel", "", query -> {
+            Toast.makeText(this, "Searching YouTube…", Toast.LENGTH_SHORT).show();
+            net.execute(() -> {
+                List<String[]> found;
+                try {
+                    found = Live.channels(Live.get("https://www.youtube.com/results?sp=EgIQAg%253D%253D&search_query="
+                            + URLEncoder.encode(query, "UTF-8")));
+                } catch (IOException e) {
+                    found = new ArrayList<>();
+                }
+                List<String[]> results = found;
+                ui.post(() -> pickChannel(results));
+            });
+        });
+    }
+
+    private void pickChannel(List<String[]> results) {
+        if (results.isEmpty()) {
+            Toast.makeText(this, "No channel found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] names = new String[Math.min(10, results.size())];
+        for (int i = 0; i < names.length; i++) names[i] = results.get(i)[1];
+        new AlertDialog.Builder(this, Ui.DIALOG)
+                .setTitle("Pick the channel")
+                .setItems(names, (d, which) -> {
+                    String[] ch = results.get(which);
+                    net.execute(() -> {
+                        Channels.fetchAvatar(cfg, ch[0], ch[2]);
+                        ui.post(() -> {
+                            Channels.add(cfg, ch[0], ch[1]);
+                            renderNews();
+                        });
+                    });
+                })
+                .show();
+    }
+
+    /** A one-line text prompt with the on-screen keyboard; empty answers are ignored. */
+    private void ask(String title, String start, Consumer<String> done) {
+        EditText field = new EditText(this);
+        field.setSingleLine();
+        field.setText(start);
+        field.setSelectAllOnFocus(true);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(24), dp(8), dp(24), 0);
+        box.addView(field);
+        AlertDialog d = new AlertDialog.Builder(this, Ui.DIALOG)
+                .setTitle(title)
+                .setView(box)
+                .setPositiveButton("OK", (dialog, w) -> {
+                    String text = field.getText().toString().trim();
+                    if (!text.isEmpty()) done.accept(text);
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
+        d.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        d.show();
     }
 
     private void loadArt(Item it) {
@@ -758,11 +879,14 @@ public final class Home extends Activity {
     }
 
     private void shift(int by) {
-        int from = dock.indexOfChild(moving), to = from + by;
-        if (to < 0 || to >= dock.getChildCount()) return;
+        ViewGroup row = (ViewGroup) moving.getParent();
+        // the + card stays last
+        int last = row.getChildCount() - (row == news ? 2 : 1);
+        int from = row.indexOfChild(moving), to = from + by;
+        if (to < 0 || to > last) return;
         ViewGroup.LayoutParams lp = moving.getLayoutParams();
-        dock.removeViewAt(from);
-        dock.addView(moving, to, lp);
+        row.removeViewAt(from);
+        row.addView(moving, to, lp);
         moving.requestFocus();
     }
 
@@ -771,8 +895,16 @@ public final class Home extends Activity {
         moving = null;
         t.setMoving(false);
         List<String> ids = new ArrayList<>();
-        for (int i = 0; i < dock.getChildCount(); i++) ids.add(((Tile) dock.getChildAt(i)).item.id);
-        Catalog.saveOrder(cfg, Catalog.APPS, ids);
+        if (Catalog.NEWS.equals(t.kind)) {
+            for (int i = 0; i < news.getChildCount(); i++) {
+                Object c = news.getChildAt(i).getTag();
+                if (c instanceof Channels.Channel) ids.add(((Channels.Channel) c).id);
+            }
+            Channels.saveOrder(cfg, ids);
+        } else {
+            for (int i = 0; i < dock.getChildCount(); i++) ids.add(((Tile) dock.getChildAt(i)).item.id);
+            Catalog.saveOrder(cfg, Catalog.APPS, ids);
+        }
         applied = cfg.version();
     }
 

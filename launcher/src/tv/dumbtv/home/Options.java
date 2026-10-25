@@ -56,10 +56,23 @@ public final class Options extends Activity {
         list.addView(action("Apps in the home row", () -> pick(Catalog.APPS)));
         list.addView(action("Inputs on home screen", () -> pick(Catalog.INPUTS)));
         list.addView(action("Reset order, names and hidden tiles", this::reset));
-        list.addView(action("Open Amazon's home screen", () -> {
+        list.addView(action("Open Amazon's home screen once", () -> {
             Guard.amazon(this);
             finish();
         }));
+        list.addView(action("Give the Home button back to Amazon", () -> new AlertDialog.Builder(this, Ui.DIALOG)
+                .setTitle("Give the Home button back to Amazon?")
+                .setMessage(Guard.holdsHome()
+                        ? "Home will open Amazon's home screen again, also after a restart. This home screen stays "
+                                + "installed under Apps. To make Home come here again: Settings › Accessibility › "
+                                + "BetterTV home button, or run launcher/install.sh from the computer."
+                        : "Home already opens Amazon's home screen.")
+                .setPositiveButton("Give it back", (d, w) -> {
+                    Guard.release(this);
+                    finish();
+                })
+                .setNegativeButton("Cancel", null)
+                .show()));
 
         TextView about = Ui.text(this, 13, Ui.FAINT, Ui.MEDIUM);
         about.setLineSpacing(0, 1.4f);
@@ -201,7 +214,7 @@ public final class Options extends Activity {
         new AlertDialog.Builder(this, Ui.DIALOG)
                 .setTitle("Reset the home screen layout?")
                 .setMessage("Order, names and hidden tiles go back to default. Colors and sizes stay.")
-                .setPositiveButton("Reset", (d, w) -> cfg.removePrefix("name.", "apps.", "inputs."))
+                .setPositiveButton("Reset", (d, w) -> cfg.removePrefix("name.", "apps.", "inputs.", "live."))
                 .setNegativeButton("Cancel", null)
                 .show();
     }
