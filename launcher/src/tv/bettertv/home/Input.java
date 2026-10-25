@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.app.Activity;
 import android.content.Context;
@@ -182,7 +182,7 @@ public final class Input extends Activity {
     }
 
     private void status(String text) {
-        Log.i("dumbtv", "input " + id + ": " + (text == null ? "video" : text));
+        Log.i("bettertv", "input " + id + ": " + (text == null ? "video" : text));
         ui.removeCallbacks(noSignal);
         status.setText(text);
         status.setVisibility(text == null ? View.GONE : View.VISIBLE);

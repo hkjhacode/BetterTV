@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import java.util.Map;
 
@@ -33,10 +33,11 @@ public final class PanchangTest {
         p.put("drik.end", "2026-10-25 11:55");
         p.put("drik.next", "पूर्णिमा");
         p.put("drik.next.end", "2026-10-26 09:40");
-        check("चतुर्दशी 11:55 AM तक".equals(Panchang.tithiLine(p, "2026-10-25 08:00")), "the tithi in force");
-        check("पूर्णिमा कल 09:40 AM तक".equals(Panchang.tithiLine(p, "2026-10-25 17:47")), "then the next one, ending tomorrow");
-        check("पूर्णिमा 09:40 AM तक".equals(Panchang.tithiLine(p, "2026-10-26 02:00")), "after midnight it ends today");
-        check(Panchang.tithiLine(p, "2026-10-26 10:00").startsWith("द्वादशी"), "past both: Mithila's words");
+        check("चतुर्दशी 11:55 AM तक".equals(Panchang.tithiLine(p, "2026-10-25 08:00", false)), "the tithi in force");
+        check("पूर्णिमा कल 09:40 AM तक".equals(Panchang.tithiLine(p, "2026-10-25 17:47", false)), "then the next one, ending tomorrow");
+        check("पूर्णिमा 09:40 AM तक".equals(Panchang.tithiLine(p, "2026-10-26 02:00", false)), "after midnight it ends today");
+        check(Panchang.tithiLine(p, "2026-10-26 10:00", false).startsWith("द्वादशी"), "past both: Mithila's words");
+        check("Purnima till 09:40 AM tomorrow".equals(Panchang.tithiLine(p, "2026-10-25 17:47", true)), "in English");
         try {
             java.io.File f = java.io.File.createTempFile("panchang", ".txt");
             Panchang.write(f, "2026-10-24", p);

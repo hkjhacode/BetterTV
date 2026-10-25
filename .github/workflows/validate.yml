@@ -30,26 +30,27 @@ jobs:
       - name: host-side launcher tests
         run: |
           jar="$ANDROID_HOME/platforms/android-25/android.jar"
-          javac -d /tmp/host -cp "$jar" launcher/src/tv/dumbtv/home/FocusColor.java \
-            launcher/src/tv/dumbtv/home/Config.java launcher/tests/FocusColorTest.java \
-            launcher/src/tv/dumbtv/home/Live.java launcher/tests/LiveTest.java \
-            launcher/src/tv/dumbtv/home/Logo.java launcher/src/tv/dumbtv/home/Item.java launcher/tests/LogoTest.java \
-            launcher/src/tv/dumbtv/home/Panchang.java launcher/tests/PanchangTest.java             launcher/src/tv/dumbtv/home/Rain.java launcher/src/tv/dumbtv/home/Lang.java launcher/tests/RainTest.java             launcher/src/tv/dumbtv/home/Msn.java launcher/tests/MsnTest.java             launcher/src/tv/dumbtv/home/Festivals.java launcher/tests/FestivalsTest.java
-          java -cp "/tmp/host:$jar" tv.dumbtv.home.FocusColorTest
-          java -cp "/tmp/host:$jar" tv.dumbtv.home.LiveTest
-          java -cp "/tmp/host:$jar" tv.dumbtv.home.LogoTest
-          java -cp "/tmp/host:$jar" tv.dumbtv.home.PanchangTest
-          java -cp "/tmp/host:$jar" tv.dumbtv.home.RainTest
-          java -cp "/tmp/host:$jar" tv.dumbtv.home.MsnTest
-          java -cp "/tmp/host:$jar" tv.dumbtv.home.FestivalsTest launcher/assets/festivals.tsv
+          javac -d /tmp/host -cp "$jar" launcher/src/tv/bettertv/home/FocusColor.java \
+            launcher/src/tv/bettertv/home/Config.java launcher/tests/FocusColorTest.java \
+            launcher/src/tv/bettertv/home/Live.java launcher/tests/LiveTest.java \
+            launcher/src/tv/bettertv/home/Logo.java launcher/src/tv/bettertv/home/Item.java launcher/tests/LogoTest.java \
+            launcher/src/tv/bettertv/home/Panchang.java launcher/tests/PanchangTest.java             launcher/src/tv/bettertv/home/Rain.java launcher/src/tv/bettertv/home/Lang.java launcher/tests/RainTest.java             launcher/src/tv/bettertv/home/Msn.java launcher/tests/MsnTest.java             launcher/src/tv/bettertv/home/Festivals.java launcher/tests/FestivalsTest.java launcher/src/tv/bettertv/home/Lineup.java launcher/tests/FavouritesTest.java
+          java -cp "/tmp/host:$jar" tv.bettertv.home.FocusColorTest
+          java -cp "/tmp/host:$jar" tv.bettertv.home.LiveTest
+          java -cp "/tmp/host:$jar" tv.bettertv.home.LogoTest
+          java -cp "/tmp/host:$jar" tv.bettertv.home.PanchangTest
+          java -cp "/tmp/host:$jar" tv.bettertv.home.RainTest
+          java -cp "/tmp/host:$jar" tv.bettertv.home.MsnTest
+          java -cp "/tmp/host:$jar" tv.bettertv.home.FestivalsTest launcher/assets/festivals.tsv
+          java -cp "/tmp/host:$jar" tv.bettertv.home.FavouritesTest
       - name: the release apk installs on fire os 6
         run: |
-          min=$("$ANDROID_HOME/build-tools/34.0.0/aapt2" dump badging launcher/build/dumbtv-home.apk | sed -nE "s/^(minSdkVersion|sdkVersion):'([0-9]+)'.*/\2/p")
+          min=$("$ANDROID_HOME/build-tools/34.0.0/aapt2" dump badging launcher/build/bettertv-home.apk | sed -nE "s/^(minSdkVersion|sdkVersion):'([0-9]+)'.*/\2/p")
           [ "$min" = 25 ] || { echo "expected minSdkVersion 25, found $min"; exit 1; }
       - name: only INTERNET on Fire OS 7 and later
         run: |
           # Fire OS 6's Keeper trio, each capped at sdk 27, plus INTERNET for weather and live news.
-          dump=$("$ANDROID_HOME/build-tools/34.0.0/aapt2" dump permissions launcher/build/dumbtv-home.apk)
+          dump=$("$ANDROID_HOME/build-tools/34.0.0/aapt2" dump permissions launcher/build/bettertv-home.apk)
           echo "$dump"
           extra=$(echo "$dump" | grep uses-permission | grep -v "maxSdkVersion='27'" | grep -v "android.permission.INTERNET" | grep -v "android.permission.WRITE_SECURE_SETTINGS" || true)
           [ -z "$extra" ] || { echo "the launcher must request only INTERNET on sdk 28+, found: $extra"; exit 1; }

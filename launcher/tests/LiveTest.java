@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /** Host-side checks for picking the most-watched live stream, without a device or network. */
 public final class LiveTest {

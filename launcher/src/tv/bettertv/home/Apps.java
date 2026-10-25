@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -33,7 +33,14 @@ public final class Apps extends Activity {
         super.onCreate(state);
         cfg = Config.get(this);
         Ui.fonts(this);
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll = new ScrollView(this) {
+            /** The focused tile grows and shows its name below it: keep room for both on screen. */
+            @Override
+            protected int computeScrollDeltaToGetChildRectOnScreen(android.graphics.Rect r) {
+                r.inset(0, -dp(48));
+                return super.computeScrollDeltaToGetChildRectOnScreen(r);
+            }
+        };
         scroll.setFocusable(false);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setClipChildren(false);

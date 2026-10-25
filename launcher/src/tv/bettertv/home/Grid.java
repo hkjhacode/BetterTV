@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.content.Context;
 import android.view.View;
@@ -63,9 +63,11 @@ final class Grid extends ViewGroup {
         int cw = first.getMeasuredWidth(), ch = first.getMeasuredHeight();
         int avail = Math.max(0, (r - l) - getPaddingLeft() - getPaddingRight());
         int cols = columns(avail, cw);
+        // the columns sit in the middle, so the spare width is split on both sides
+        int left = getPaddingLeft() + Math.max(0, avail - (cols * (cw + hGap) - hGap)) / 2;
         for (int i = 0; i < n; i++) {
             int col = i % cols, row = i / cols;
-            int x = getPaddingLeft() + col * (cw + hGap);
+            int x = left + col * (cw + hGap);
             int y = getPaddingTop() + row * (ch + vGap);
             getChildAt(i).layout(x, y, x + cw, y + ch);
         }

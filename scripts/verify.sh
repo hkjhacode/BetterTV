@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Proof that it worked: blocked hosts must answer 0.0.0.0, everyday hosts must
-# still resolve, and HOME must land on dumbtv home unless the user kept Amazon's.
+# still resolve, and HOME must land on BetterTV unless the user kept Amazon's.
 # Exit code 0 means every enabled check passed.
 # Usage: ./scripts/verify.sh
 set -uo pipefail
@@ -43,7 +43,7 @@ if [[ $LAUNCHER == 0 ]]; then
   printf '%-10s %-38s %s\n' skip home "LAUNCHER=0, not checked"
 elif [[ $SDK -lt 28 ]]; then
   # Fire OS 6: the Keeper, not the accessibility service, owns HOME.
-  keeper=$(dev 'dumpsys activity services tv.dumbtv.home' | grep -c 'isForeground=true' || true)
+  keeper=$(dev 'dumpsys activity services tv.bettertv.home' | grep -c 'isForeground=true' || true)
   if [[ ${keeper:-0} -gt 0 ]]; then
     printf '%-10s %-38s %s\n' ok home "Keeper armed, front is ${home:-unknown}"
   else
@@ -60,7 +60,7 @@ else
       a11y=$(dev "settings --user $current_user get secure enabled_accessibility_services" | tr -d '\r')
       enabled=$(dev "settings --user $current_user get secure accessibility_enabled" | tr -d '\r')
       case :$a11y: in
-        *:tv.dumbtv.home/.Guard:*|*:tv.dumbtv.home/tv.dumbtv.home.Guard:*)
+        *:tv.bettertv.home/.Guard:*|*:tv.bettertv.home/tv.bettertv.home.Guard:*)
           if [[ $enabled == 1 ]]; then
             if dump=$(dev 'dumpsys accessibility'); then
               printf '%s\n' "$dump" | guard_bound "$current_user"
@@ -120,7 +120,7 @@ if [[ $LAUNCHER == 0 ]]; then
 elif [[ $SDK -lt 28 ]]; then
   printf '%-10s %-38s %s\n' skip alarm "Fire OS 6 Keeper uses moveTaskToFront"
 else
-  # dumbtv home needs this to answer HOME immediately; an update can drop it.
+  # BetterTV needs this to answer HOME immediately; an update can drop it.
   if dev 'settings get global alarm_manager_constants' | grep -q 'min_futurity=0'; then
     printf '%-10s %-38s %s\n' ok alarm "min_futurity=0"
   else

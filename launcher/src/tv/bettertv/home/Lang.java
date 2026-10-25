@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /**
  * The home screen's words in Angika, Maithili, Hindi and English: the greeting for the time of

@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.animation.ValueAnimator;
 import android.app.Activity;
@@ -72,6 +72,15 @@ public final class Home extends Activity {
     private int applied = -1, appsGeneration;
     private boolean resumed, landed;
     private ImageView wall;
+    /** The screensaver: the wallpaper alone, faded in over everything after two idle minutes. */
+    private ImageView rest;
+    /** My Favourites, the third stop (hidden until files/favourites/favourites.tsv is on the TV). */
+    private Favourites favs;
+    private LinearLayout below;
+    private long favsStamp = -1;
+    private final Runnable idle = this::rest;
+    /** The wallpaper card while it is open; Home closes it. */
+    private android.app.Dialog wallCard;
     private View shade, wash, dimmer, glow, wifi, more;
     private FrameLayout shelf;
     /** The opening / welcome-back curtain; {@link #away} is set while another app is in front. */
@@ -222,8 +231,10 @@ public final class Home extends Activity {
             weather.setVisibility(View.VISIBLE);
         });
         loadPanchang();
+        loadFavourites();
         View focused = getCurrentFocus();
         if (focused instanceof Tile) focusTile((Tile) focused);
+        wake();
     }
 
     @Override
@@ -241,6 +252,10 @@ public final class Home extends Activity {
         ownScreen = false;
         unregisterReceiver(time);
         if (moving != null) stopMoving();
+        ui.removeCallbacks(idle);
+        rest.animate().cancel();
+        rest.setAlpha(0f);
+        rest.setVisibility(View.GONE);
     }
 
     @Override
@@ -272,6 +287,7 @@ public final class Home extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (moving != null) stopMoving();
+        if (wallCard != null) wallCard.dismiss();
         if (resumed) focusFirst();
     }
 
@@ -282,6 +298,8 @@ public final class Home extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        // any button brings the home screen back from the screensaver, and only does that
+        if (wake() && e.getAction() == KeyEvent.ACTION_DOWN) return true;
         if (moving == null) return super.dispatchKeyEvent(e);
         if (e.getAction() == KeyEvent.ACTION_DOWN) {
             switch (e.getKeyCode()) {
@@ -426,9 +444,11 @@ public final class Home extends Activity {
         LinearLayout when = new LinearLayout(this);
         when.setOrientation(LinearLayout.VERTICAL);
         greet = Ui.text(this, 17, Ui.MUTED, Ui.outfitLight);
+        greet.setSingleLine();
         clock = Ui.text(this, 60, Ui.TEXT, Ui.outfitLight);
         clock.setPadding(0, dp(4), 0, dp(6));
         date = Ui.text(this, 16, Ui.MUTED, Ui.outfitLight);
+        date.setSingleLine();
         for (TextView t : new TextView[] {greet, clock, date}) t.setShadowLayer(dp(10), 0, dp(1), 0xCC000000);
         when.addView(greet);
         when.addView(clock);
@@ -443,6 +463,7 @@ public final class Home extends Activity {
         wifi = pill(R.drawable.ic_wifi, "Wi-Fi", v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS), null));
         wifi.setId(View.generateViewId());
         head.addView(wifi);
+        head.addView(circle(R.drawable.ic_wallpaper, "Wallpaper", v -> wallpapers()));
         head.addView(circle(R.drawable.ic_tune, "Options", v -> own(new Intent(this, Options.class))));
         head.addView(circle(R.drawable.ic_settings, "Settings", v -> openSettings()));
         column.addView(head, new LinearLayout.LayoutParams(MATCH, WRAP));
@@ -487,7 +508,7 @@ public final class Home extends Activity {
         shelf.addView(dockScroll, new FrameLayout.LayoutParams(MATCH, WRAP));
         column.addView(shelf, new LinearLayout.LayoutParams(MATCH, WRAP));
 
-        LinearLayout below = new LinearLayout(this);
+        below = new LinearLayout(this);
         below.setOrientation(LinearLayout.VERTICAL);
         below.setClipChildren(false);
         below.setClipToPadding(false);
@@ -538,6 +559,26 @@ public final class Home extends Activity {
         mlp.gravity = Gravity.CENTER_HORIZONTAL;
         mlp.topMargin = dp(14);
         below.addView(more, mlp);
+        favs = new Favourites(this);
+        favs.setVisibility(View.GONE);
+        favs.onOpen(w -> {
+            Intent go = new Intent(Intent.ACTION_VIEW, Uri.parse(w.link));
+            if (!w.pkg.isEmpty()) go.setPackage(w.pkg);
+            launch(go, w.pkg);
+        });
+        favs.onLeave(() -> more.requestFocus(), null);
+        favs.setOnFocusChangeListener((v, has) -> {
+            if (!has) return;
+            light(0, null);
+            targetScroll = favs.getTop();
+            page.smoothScrollTo(0, targetScroll);
+        });
+        sections.addView(favs, new LinearLayout.LayoutParams(MATCH, screen));
+        rest = new ImageView(this);
+        rest.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        rest.setAlpha(0f);
+        rest.setVisibility(View.GONE);
+        root.addView(rest, new FrameLayout.LayoutParams(MATCH, MATCH));
         curtain.bringToFront();
         return root;
     }
@@ -612,7 +653,8 @@ public final class Home extends Activity {
             return i >= 0 && i < row.getChildCount() ? row.getChildAt(i) : from;
         }
         if (from == more) {
-            return dir == View.FOCUS_UP ? in(news, lastNews) : from;
+            if (dir == View.FOCUS_UP) return in(news, lastNews);
+            return dir == View.FOCUS_DOWN && favs.getVisibility() == View.VISIBLE ? favs : from;
         }
         if (row == head) {
             return dir == View.FOCUS_DOWN ? in(dock, lastDock) : from;
@@ -876,7 +918,7 @@ public final class Home extends Activity {
     }
 
     private void scrollTo(boolean below) {
-        targetScroll = below ? Math.max(0, page.getChildAt(0).getHeight() - page.getHeight()) : 0;
+        targetScroll = below ? Math.max(0, this.below.getBottom() - page.getHeight()) : 0;
         page.smoothScrollTo(0, targetScroll);
     }
 
@@ -1001,11 +1043,15 @@ public final class Home extends Activity {
         String lang = cfg.get(Config.LANGUAGE);
         String wish = Festivals.wish(cfg, lang, today);
         greet.setText(wish != null ? wish : greeting(lang, c.get(Calendar.HOUR_OF_DAY)));
+        fitLine(greet, 17);
         c.add(Calendar.DAY_OF_YEAR, 7);
         String[] next = Festivals.next(today, ISO.format(c.getTime()), lang);
         boolean english = Lang.ENGLISH.equals(lang);
         String line = (english ? DAY_EN : DAY).format(now);
+        // Mithila's own words for today's festival; in English, the calendar's English name when it has one
         String today2 = panchangFestival();
+        String own = english && today2 != null ? Festivals.english(today) : null;
+        if (own != null) today2 = own;
         if (today2 != null) {
             line += "   ·   " + today2;
         } else if (next != null) {
@@ -1021,8 +1067,9 @@ public final class Home extends Activity {
             }
         }
         date.setText(line);
+        fitLine(date, 16);
         // the tithi changes during the day: follow it every minute
-        if (panchangDay != null) panchang.setText(Panchang.tithiLine(panchangDay, NOW.format(now)));
+        if (panchangDay != null) panchang.setText(Panchang.tithiLine(panchangDay, NOW.format(now), english));
         colours(today);
         // hourly and time-of-day rotations change while the screen stays open; a no-op otherwise
         background();
@@ -1060,6 +1107,129 @@ public final class Home extends Activity {
     /** Mithila's festival for today, if any, for the date line; none between midnight and 6 AM, when the panchang is still yesterday's. */
     private String panchangFestival() {
         return panchangDay == null || !ISO.format(new Date()).equals(panchangFor) ? null : Panchang.festival(panchangDay);
+    }
+
+    /** One line, never cut: shrinks the text until it fits the width its column has. */
+    private void fitLine(TextView t, float sp) {
+        t.post(() -> {
+            int room = ((View) t.getParent()).getWidth();
+            if (room <= 0) return;
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+            while (t.getPaint().measureText(t.getText().toString()) > room && t.getTextSize() > dp(12)) {
+                t.setTextSize(TypedValue.COMPLEX_UNIT_PX, t.getTextSize() * 0.94f);
+            }
+        });
+    }
+
+    /** Reads the lineup again whenever favourites.tsv on the TV has changed (pushed from the computer). */
+    private void loadFavourites() {
+        File dir = new File(cfg.dir, "favourites");
+        long stamp = new File(dir, "favourites.tsv").lastModified();
+        if (stamp == favsStamp) return;
+        favsStamp = stamp;
+        int w = getResources().getDisplayMetrics().widthPixels, h = getResources().getDisplayMetrics().heightPixels;
+        io.execute(() -> {
+            List<Lineup.Who> list = Favourites.load(dir, w, h);
+            ui.post(() -> {
+                favs.show(list);
+                favs.setVisibility(list.isEmpty() ? View.GONE : View.VISIBLE);
+            });
+        });
+    }
+
+    /** Two minutes without a button: fade the home screen away and leave only the wallpaper. */
+    private void rest() {
+        if (Ui.wall == null || !resumed) return;
+        rest.setImageDrawable(new android.graphics.drawable.BitmapDrawable(getResources(), Ui.wall));
+        rest.setVisibility(View.VISIBLE);
+        rest.animate().alpha(1f).setDuration(1200).withEndAction(null).start();
+    }
+
+    /** Restarts the idle timer; true if the screensaver was showing (it fades away). */
+    private boolean wake() {
+        ui.removeCallbacks(idle);
+        // home.conf screensaver.minutes: 2 by default, 0 for never
+        long minutes = 2;
+        try {
+            minutes = Long.parseLong(cfg.get("screensaver.minutes", "2").trim());
+        } catch (NumberFormatException ignored) {
+            // keep two minutes
+        }
+        if (minutes > 0) ui.postDelayed(idle, minutes * 60_000);
+        if (rest.getVisibility() != View.VISIBLE) return false;
+        rest.animate().alpha(0f).setDuration(250).withEndAction(() -> {
+            rest.setVisibility(View.GONE);
+            rest.setImageDrawable(null);
+        }).start();
+        return true;
+    }
+
+    /**
+     * The wallpaper changer: a small card at the bottom right with nothing dimmed, so the wallpaper
+     * itself is what you look at. "Next wallpaper" keeps it open; a folder (temples, mountains, ...)
+     * or all of them picks what the rotation draws from. Its own layout, not an AlertDialog: Fire
+     * OS lays those out full screen and cuts them when they are made smaller.
+     */
+    private void wallpapers() {
+        android.app.Dialog d = new android.app.Dialog(this);
+        d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundResource(R.drawable.glass_dialog);
+        // after the background, which would otherwise reset the padding to its 16dp inset
+        card.setPadding(dp(30), dp(26), dp(30), dp(26));
+        TextView title = Ui.text(this, 13, Ui.FAINT, Ui.outfitMedium);
+        title.setText("WALLPAPER");
+        title.setLetterSpacing(0.16f);
+        title.setPadding(dp(14), 0, 0, dp(10));
+        card.addView(title);
+        List<String> folders = cfg.wallpaperFolders();
+        folders.add(0, "");
+        List<TextView> rows = new ArrayList<>();
+        Runnable marks = () -> {
+            String now = cfg.get(Config.FOLDER, "");
+            for (int i = 0; i < rows.size(); i++) {
+                String f = folders.get(i);
+                String name = f.isEmpty() ? "All folders" : Character.toUpperCase(f.charAt(0)) + f.substring(1);
+                rows.get(i).setText((f.equals(now) ? "✓   " : "     ") + name);
+            }
+        };
+        TextView next = row(card, "Next wallpaper  ›");
+        next.setOnClickListener(v -> {
+            cfg.nextWallpaper();
+            background();
+        });
+        for (String f : folders) {
+            TextView r = row(card, "");
+            r.setOnClickListener(v -> {
+                cfg.set(Config.FOLDER, f.isEmpty() ? null : f);
+                background();
+                marks.run();
+            });
+            rows.add(r);
+        }
+        marks.run();
+        d.setContentView(card);
+        android.view.Window w = d.getWindow();
+        w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        w.setLayout(dp(400), ViewGroup.LayoutParams.WRAP_CONTENT);
+        w.setGravity(Gravity.BOTTOM | Gravity.END);
+        w.setDimAmount(0f);
+        d.setOnDismissListener(x -> wallCard = null);
+        wallCard = d;
+        d.show();
+        next.requestFocus();
+    }
+
+    private TextView row(LinearLayout card, String text) {
+        TextView r = Ui.text(this, 17, Ui.TEXT, Ui.outfitMedium);
+        r.setText(text);
+        r.setPadding(dp(14), dp(11), dp(14), dp(11));
+        r.setFocusable(true);
+        r.setClickable(true);
+        Ui.focusStyle(r, cfg.accent(), Color.TRANSPARENT, dp(12));
+        card.addView(r, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return r;
     }
 
     private void showPanchang() {

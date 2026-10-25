@@ -11,7 +11,7 @@ LABEL = 'Service[label=BetterTV home button, feedbackType[FEEDBACK_GENERIC]]'
 
 
 class VerifyTests(unittest.TestCase):
-    def run_verify(self, dump, *, component='tv.dumbtv.home/.Guard', enabled='1',
+    def run_verify(self, dump, *, component='tv.bettertv.home/.Guard', enabled='1',
                    user='0', launcher='1', dump_code=0, alarms='min_futurity=0'):
         replies = {
             'getprop ro.build.version.sdk': '34',
@@ -43,7 +43,7 @@ class VerifyTests(unittest.TestCase):
 
     @staticmethod
     def modern(bound, user=0):
-        return f'User state[\n attributes:{{id={user}, flags=0}}\n Bound services:{{{bound}}}\n Enabled services:{{tv.dumbtv.home/.Guard}}\n Binding services:{{}}\n]\n'
+        return f'User state[\n attributes:{{id={user}, flags=0}}\n Bound services:{{{bound}}}\n Enabled services:{{tv.bettertv.home/.Guard}}\n Binding services:{{}}\n]\n'
 
     def test_bound_android14_while_another_app_is_foreground(self):
         result, _ = self.run_verify(self.modern(LABEL))
@@ -57,13 +57,13 @@ class VerifyTests(unittest.TestCase):
 
     def test_bound_android9_class_name_after_update(self):
         # Seen on a Fire OS 7 TV right after adb install -r: the label is not loaded yet.
-        by_class = LABEL.replace('BetterTV home button', 'tv.dumbtv.home.Guard')
+        by_class = LABEL.replace('BetterTV home button', 'tv.bettertv.home.Guard')
         dump = f'User state[attributes:{{id=0, currentUser=true}}\n services:{{{by_class}}}]'
         result, _ = self.run_verify(dump)
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_other_class_name_does_not_pass(self):
-        other = LABEL.replace('BetterTV home button', 'tv.dumbtv.home.GuardX')
+        other = LABEL.replace('BetterTV home button', 'tv.bettertv.home.GuardX')
         dump = f'User state[attributes:{{id=0, currentUser=true}}\n services:{{{other}}}]'
         result, _ = self.run_verify(dump)
         self.assertEqual(result.returncode, 1)
@@ -83,12 +83,12 @@ class VerifyTests(unittest.TestCase):
 
     def test_current_secondary_user_and_full_component(self):
         result, _ = self.run_verify(self.modern('', 0) + self.modern(LABEL, 10), user='10',
-                                    component='example.reader/.Service:tv.dumbtv.home/tv.dumbtv.home.Guard')
+                                    component='example.reader/.Service:tv.bettertv.home/tv.bettertv.home.Guard')
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_similar_labels_or_components_do_not_pass(self):
-        for dump, component in [(self.modern(LABEL.replace('button,', 'button fake,')), 'tv.dumbtv.home/.Guard'),
-                                (self.modern(LABEL), 'tv.dumbtv.home.fake/.Guard')]:
+        for dump, component in [(self.modern(LABEL.replace('button,', 'button fake,')), 'tv.bettertv.home/.Guard'),
+                                (self.modern(LABEL), 'tv.bettertv.home.fake/.Guard')]:
             with self.subTest(component=component):
                 result, _ = self.run_verify(dump, component=component)
                 self.assertEqual(result.returncode, 1)

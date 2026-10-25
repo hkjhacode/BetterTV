@@ -13,11 +13,15 @@ Once installed it runs on the TV by itself. A computer is needed only to install
   - Large clock, and the date in Hindi.
   - Weather pill: temperature, AQI and a rain check.
   - Panchang pill: today's tithi and when it ends.
-  - Wi-Fi, Options and Settings buttons.
+  - Wi-Fi, Wallpaper, Options and Settings buttons.
+- **Wallpapers**
+  - The Wallpaper button opens a small card: "Next wallpaper" changes the picture while you watch, and a folder (temples, scenery, heroes, ...) or all of them picks what it rotates through.
+  - Glassy look (Options): frosted panels on every BetterTV screen.
+  - After two idle minutes the screen fades to the wallpaper alone; any button brings it back.
 - **Apps**
   - One row of white logos with a soft glow in the app's colour.
   - The selected app comes forward, and a line above the row changes each visit.
-  - More apps holds everything else.
+  - More apps holds everything else. A newly installed app appears there, never on the home row by itself: hold OK on it to add it, and use the menu on a home-row app to take it off. Nothing is uninstalled.
 - **Live news**
   - Veto channels open straight into the live stream.
   - YouTube channels open their most-watched live stream in SmartTube.
@@ -54,11 +58,11 @@ adb connect <tv-ip>:5555                       # press Allow on the TV
 ./launcher/install.sh --build                  # build, install, take over the Home button
 ```
 
-`install.sh --undo` gives the Home button back to the stock home screen. `adb uninstall tv.dumbtv.home` removes BetterTV.
+`install.sh --undo` gives the Home button back to the stock home screen. `adb uninstall tv.bettertv.home` removes BetterTV.
 
 ## Make it yours
 
-Everything lives in one file on the TV, `/sdcard/Android/data/tv.dumbtv.home/files/home.conf`, and most of it is also in Options.
+Everything lives in one file on the TV, `/sdcard/Android/data/tv.bettertv.home/files/home.conf`, and most of it is also in Options.
 
 | Setting | What it does |
 |---|---|
@@ -72,12 +76,12 @@ Everything lives in one file on the TV, `/sdcard/Android/data/tv.dumbtv.home/fil
 | `colours=festive` | `calm`, `festive` or `always` |
 | `home.button=bettertv` | or `amazon` |
 
-Wallpapers: put 1920×1080 JPEGs in `files/wallpapers/` on the TV (the folder's file names become their titles). A copy script and the wallpapers themselves are kept off this repo, because pictures belong to their owners.
+Wallpapers: put 1920×1080 JPEGs in `files/wallpapers/` on the TV, in folders if you like (`wallpapers/temples/…`); file names become their titles. A copy script and the wallpapers themselves are kept off this repo, because pictures belong to their owners.
 
 ## Build
 
 ```sh
-cd launcher && ./build.sh         # launcher/build/dumbtv-home.apk
+cd launcher && ./build.sh         # launcher/build/bettertv-home.apk
 ```
 
 Plain Java and Android views, no libraries. Host tests for the parsers: see `.github/workflows/validate.yml`.
@@ -88,7 +92,8 @@ Plain Java and Android views, no libraries. Host tests for the parsers: see `.gi
 |---|---|---|
 | Weather and AQI | MSN (Bing) Weather's data service, forecasts by Foreca | Unofficial. The key is read from MSN's page at run time. Falls back to Open-Meteo. |
 | Weather fallback | [Open-Meteo](https://open-meteo.com) | free, no key |
-| Tithi | [Drik Panchang](https://www.drikpanchang.com) (New Delhi) | |
+| Tithi | [Drik Panchang](https://www.drikpanchang.com) (New Delhi) | today's and tomorrow's page, so the tithi moves on when it ends |
+| Festival dates | Drik Panchang (Patna), corrected to Mithila Panchang where they differ | `launcher/assets/festivals.tsv` |
 | Panchang and Mithila festivals | [Mithila Panchang](https://mithilapanchang.com) | fetched once per day |
 | Place search | Open-Meteo geocoding | |
 | Font | [Outfit](https://fonts.google.com/specimen/Outfit) | SIL Open Font License |

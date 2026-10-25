@@ -23,7 +23,7 @@ class RestoreTest(unittest.TestCase):
             tmp = Path(tmp)
             state = tmp / "state.json"
             hooked = {
-                "secure/enabled_accessibility_services": "tv.dumbtv.home/tv.dumbtv.home.Guard",
+                "secure/enabled_accessibility_services": "tv.bettertv.home/tv.bettertv.home.Guard",
                 "secure/accessibility_enabled": "1",
                 "secure/always_on_vpn_app": "dnsfilter.android",
                 "global/alarm_manager_constants": "min_futurity=0",
@@ -57,7 +57,7 @@ class RestoreTest(unittest.TestCase):
         result, _, state = self.run_restore()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         settings = state["settings"]
-        self.assertNotIn("tv.dumbtv.home", settings.get("secure/enabled_accessibility_services", ""))
+        self.assertNotIn("tv.bettertv.home", settings.get("secure/enabled_accessibility_services", ""))
         self.assertEqual(settings.get("secure/accessibility_enabled"), "0")
         self.assertNotIn("secure/always_on_vpn_app", settings)
         self.assertNotIn("global/alarm_manager_constants", settings)

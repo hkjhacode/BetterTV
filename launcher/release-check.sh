@@ -3,12 +3,12 @@
 # agree. Run this before publishing or recording instructions, and in CI.
 #
 #   ./launcher/release-check.sh            local build (if present) + remote release
-#   ./launcher/release-check.sh --local    only launcher/build/dumbtv-home-<VERSION>.apk
+#   ./launcher/release-check.sh --local    only launcher/build/bettertv-home-<VERSION>.apk
 #   ./launcher/release-check.sh --remote   only the GitHub release
 #   ./launcher/release-check.sh --manifest only launcher/version.env (used by CI)
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-REPO=https://github.com/humblemuzzu/dumbtv
+REPO=https://github.com/hkjhacode/BetterTV
 
 mode=${1:-all}
 case $mode in
@@ -41,7 +41,7 @@ grep -q 'version.env' build.sh   || bad "build.sh does not source version.env"
 
 # --- local build ------------------------------------------------------------
 if [[ $mode == both || $mode == --local ]]; then
-  APK=build/dumbtv-home-$VERSION.apk
+  APK=build/bettertv-home-$VERSION.apk
   if [[ -f $APK ]]; then
     got=$(sha256 "$APK")
     [[ $got == "$APK_SHA256" ]] && ok "$APK matches" || bad "$APK is $got, version.env says $APK_SHA256 — rebuild and update the hash"
@@ -52,10 +52,10 @@ fi
 
 # --- remote release ---------------------------------------------------------
 if [[ $mode == both || $mode == --remote ]]; then
-  URL=$REPO/releases/download/launcher-v$VERSION/dumbtv-home.apk
+  URL=$REPO/releases/download/launcher-v$VERSION/bettertv-home.apk
   code=$(curl -sIL -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || echo 000)
   if [[ $code == 200 ]]; then
-    tmp=$(mktemp -t dumbtv-release.XXXXXX)
+    tmp=$(mktemp -t bettertv-release.XXXXXX)
     if curl -fsSL -o "$tmp" "$URL"; then
       got=$(sha256 "$tmp")
       [[ $got == "$APK_SHA256" ]] && ok "release launcher-v$VERSION matches" \

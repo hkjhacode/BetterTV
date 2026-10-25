@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.accessibilityservice.AccessibilityService;
 import android.app.ActivityOptions;

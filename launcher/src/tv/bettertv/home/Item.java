@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.content.Intent;
 import android.content.pm.ActivityInfo;

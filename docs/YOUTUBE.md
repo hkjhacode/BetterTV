@@ -114,7 +114,7 @@ If it was removed with `--remove`, the only way back is the Amazon Appstore
 command line — everything else is.
 
 Then set the dumbtv home app order back in Options, or edit
-`/sdcard/Android/data/tv.dumbtv.home/files/home.conf`.
+`/sdcard/Android/data/tv.bettertv.home/files/home.conf`.
 
 ## What this does not do
 

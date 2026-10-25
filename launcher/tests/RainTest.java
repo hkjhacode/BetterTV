@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /** Host-side checks for the rain check and the greetings, without a device. */
 public final class RainTest {

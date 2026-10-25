@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.content.Context;
 import android.graphics.Color;
@@ -174,7 +174,7 @@ final class Config {
                 values.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
             }
         } catch (IOException e) {
-            Log.w("dumbtv", "could not read " + file, e);
+            Log.w("bettertv", "could not read " + file, e);
         }
     }
 
@@ -186,10 +186,10 @@ final class Config {
                 w.write(e.getKey() + "=" + e.getValue() + "\n");
             }
         } catch (IOException e) {
-            Log.w("dumbtv", "could not write " + tmp, e);
+            Log.w("bettertv", "could not write " + tmp, e);
             return;
         }
-        if (!tmp.renameTo(file)) Log.w("dumbtv", "could not replace " + file);
+        if (!tmp.renameTo(file)) Log.w("bettertv", "could not replace " + file);
         signature = file.lastModified() * 31 + file.length();
     }
 

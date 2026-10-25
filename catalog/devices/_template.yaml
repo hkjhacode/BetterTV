@@ -23,7 +23,7 @@ data:
   user_apps: data/androidtv/user-apps.txt
 launcher:
   mechanism: set_home_activity
-  package: tv.dumbtv.home
+  package: tv.bettertv.home
   reason: "Android TV accepts cmd package set-home-activity"
   fallback: ""
   quirk: ""

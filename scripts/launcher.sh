@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs dumbtv home (this repo's own launcher, launcher/) and gives it the
+# Installs BetterTV (this repo's own launcher, launcher/) and gives it the
 # HOME button. Fire OS ignores "default home" and protects Amazon's launcher, so
 # the takeover runs through a small accessibility service (Fire OS 7/8) or the
 # UsageStats Keeper (Fire OS 6, which refuses third-party accessibility services);
@@ -15,10 +15,10 @@ if [[ $LAUNCHER == 0 ]]; then
   exit 0
 fi
 
-PKG=tv.dumbtv.home
+PKG=tv.bettertv.home
 
 step "plan"
-note "install dumbtv home: open source, 54 KB, no internet permission, no ad ID"
+note "install BetterTV: open source, no ad ID; internet only for weather, panchang and live news"
 note "the prebuilt APK comes from this repo's GitHub release and is checksum-verified"
 if [[ $SDK -lt 28 ]]; then
   note "take over HOME: Keeper (UsageStats + moveTaskToFront, no accessibility)"
@@ -37,7 +37,7 @@ ADB=$ADB ADB_SERIAL=$SERIAL "$ROOT/launcher/install.sh" || die "launcher install
 sleep 3
 home=$(dev 'dumpsys activity activities' | grep -m1 mResumedActivity | sed 's/.*u0 //;s/}.*//')
 if printf '%s' "$home" | grep -q "$PKG"; then
-  note "home screen is dumbtv home"
+  note "home screen is BetterTV"
 else
   note "home screen is $home"
   note "press HOME once or run this script again; see docs/TROUBLESHOOTING.md if it will not stick"

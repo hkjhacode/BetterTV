@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.content.Context;
 import android.content.Intent;
@@ -24,6 +24,9 @@ final class Catalog {
     static final String DOCK = "apps.dock";
     private static final String DEFAULT_DOCK = "com.netflix.ninja,com.amazon.firetv.youtube,in.startv.hotstar,"
             + "org.smarttube.stable,com.indiatv.livetv.androidtv,com.amazon.firebat,com.amazon.venezia";
+
+    /** The package BetterTV had before it was renamed; it stays installed, out of sight. */
+    static final String OLD_SELF = "tv.dumbtv.home";
 
     private Catalog() {}
 
@@ -57,7 +60,8 @@ final class Catalog {
         Intent query = new Intent(Intent.ACTION_MAIN).addCategory(category);
         for (ResolveInfo ri : pm.queryIntentActivities(query, 0)) {
             ActivityInfo ai = ri.activityInfo;
-            if (ai.packageName.equals(self) || found.containsKey(ai.packageName)) continue;
+            // BetterTV itself, and its first build (installed as dumbtv home), are never a tile
+            if (ai.packageName.equals(self) || ai.packageName.equals(OLD_SELF) || found.containsKey(ai.packageName)) continue;
             Intent launch = new Intent(Intent.ACTION_MAIN).addCategory(category)
                     .setClassName(ai.packageName, ai.name);
             Item it = new Item(ai.packageName, ri.loadLabel(pm), launch);

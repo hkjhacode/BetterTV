@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.content.Context;
 
@@ -62,6 +62,12 @@ final class Festivals {
         if (own != null) return Lang.wish(lang, own, own, null, null);
         String[] f = find(day);
         return f == null ? null : Lang.wish(lang, f[2], f[4], f[5], f[6]);
+    }
+
+    /** The festival on {@code day} by its English name, or null. */
+    static String english(String day) {
+        String[] f = find(day);
+        return f == null || f[4].isEmpty() ? null : f[4];
     }
 
     /** The festival's colour on {@code day} as #RRGGBB, or null on an ordinary day. */

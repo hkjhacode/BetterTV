@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import org.json.JSONArray;
 import org.json.JSONException;

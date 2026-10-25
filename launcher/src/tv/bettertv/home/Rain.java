@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /** When rain is next likely, from an hourly forecast; plain Java so it is tested on the host. */
 final class Rain {

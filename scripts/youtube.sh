@@ -35,7 +35,7 @@ APK_URL=https://github.com/yuliskov/SmartTube/releases/download/32.56s/SmartTube
 APK_SHA256=4a35b90940612e048e4e9cb9e10379f7db1e84f30375994129f10a571ee04ce5
 # versionCode of that build. Update it with the URL and hash.
 APK_VERSION_CODE=2446
-HOME_DIR=/sdcard/Android/data/tv.dumbtv.home/files
+HOME_DIR=/sdcard/Android/data/tv.bettertv.home/files
 
 step "plan"
 note "install SmartTube (MIT, open source, TV-only YouTube client with no ad code)"
@@ -56,7 +56,7 @@ fi
 confirm "Replace YouTube with SmartTube on $SERIAL?" || die "cancelled"
 
 step "download"
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/dumbtv-yt.XXXXXX") || die "could not create a temp dir"
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/bettertv-yt.XXXXXX") || die "could not create a temp dir"
 trap 'rm -rf "$WORK"' EXIT
 APK=$WORK/smarttube.apk
 fetch "$APK" "$APK_URL" || die "could not download $APK_URL"
@@ -104,7 +104,7 @@ else
 fi
 
 step "home screen"
-if present tv.dumbtv.home; then
+if present tv.bettertv.home; then
   conf=$WORK/home.conf
   if "$ADB" -s "$SERIAL" shell "cat $HOME_DIR/home.conf" > "$conf" 2>/dev/null && [[ -s $conf ]]; then
     # Keep every other key; replace the app order, then drop YouTube from it.
@@ -123,10 +123,10 @@ if present tv.dumbtv.home; then
     "$ADB" -s "$SERIAL" push "$conf.new" "$HOME_DIR/home.conf" | tail -1
     note "apps.order now: $(sed -n 's/^apps\.order=//p' "$conf.new")"
   else
-    note "no home.conf yet — set the app order in dumbtv home > Options"
+    note "no home.conf yet — set the app order in BetterTV > Options"
   fi
 else
-  note "dumbtv home is not installed; skipping the home-screen step"
+  note "BetterTV is not installed; skipping the home-screen step"
 fi
 
 step "one-time settings (remote, on the TV)"

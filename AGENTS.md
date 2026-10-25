@@ -149,7 +149,7 @@ and changes nothing.
 ```
 ok         softwareupdates.amazon.com   blocked
 ok         www.youtube.com              resolves
-ok home bound, front is tv.dumbtv.home/.Home
+ok home bound, front is tv.bettertv.home/.Home
 packages 51 disabled
 ok filter 416 entries
 ok vpn dnsfilter.android

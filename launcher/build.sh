@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds launcher/build/dumbtv-home.apk from the bare SDK tools: no Gradle, no libraries.
+# Builds launcher/build/bettertv-home.apk from the bare SDK tools: no Gradle, no libraries.
 # Needs a JDK 17+ and an Android SDK with platforms;android-$MIN_SDK and any build-tools.
 #   MIN_SDK=25 (default)  one APK for Fire OS 6, 7 and 8: the published release. Compiling
 #                         against android-25 makes javac reject any android.* API Fire OS 6
@@ -50,15 +50,15 @@ if [[ $(javac_major "$JAVA_HOME") -ge 21 ]]; then
 fi
 export JAVA_HOME
 
-KEYSTORE=${DUMBTV_KEYSTORE:-$PWD/release.keystore}
-KEYPASS=${DUMBTV_KEYPASS:-dumbtvhome}
+KEYSTORE=${BETTERTV_KEYSTORE:-$PWD/release.keystore}
+KEYPASS=${BETTERTV_KEYPASS:-bettertvhome}
 if [[ ! -f $KEYSTORE ]]; then
   "$JAVA_HOME/bin/keytool" -genkeypair -keystore "$KEYSTORE" -alias home -keyalg RSA -keysize 2048 \
-    -validity 10000 -storepass "$KEYPASS" -keypass "$KEYPASS" -dname "CN=dumbtv home" >/dev/null
+    -validity 10000 -storepass "$KEYPASS" -keypass "$KEYPASS" -dname "CN=BetterTV" >/dev/null
   echo "created signing key $KEYSTORE (keep it: updates must be signed with the same key)"
 fi
 
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/dumbtv-home.XXXXXX")
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/bettertv-home.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/gen" "$WORK/classes" build
 
@@ -87,9 +87,9 @@ fi
 
 "$BT/zipalign" -f -p 4 "$WORK/app.apk" "$WORK/aligned.apk"
 "$(tool apksigner)" sign --ks "$KEYSTORE" --ks-pass "pass:$KEYPASS" --key-pass "pass:$KEYPASS" \
-  --out build/dumbtv-home.apk "$WORK/aligned.apk"
-"$(tool apksigner)" verify build/dumbtv-home.apk
+  --out build/bettertv-home.apk "$WORK/aligned.apk"
+"$(tool apksigner)" verify build/bettertv-home.apk
 
-perms=$("$BT/aapt2" dump permissions build/dumbtv-home.apk | grep -c 'uses-permission' || true)
-printf 'built build/dumbtv-home.apk  %s bytes  %s uses-permission entries\n' \
-  "$(wc -c < build/dumbtv-home.apk | tr -d ' ')" "$perms"
+perms=$("$BT/aapt2" dump permissions build/bettertv-home.apk | grep -c 'uses-permission' || true)
+printf 'built build/bettertv-home.apk  %s bytes  %s uses-permission entries\n' \
+  "$(wc -c < build/bettertv-home.apk | tr -d ' ')" "$perms"

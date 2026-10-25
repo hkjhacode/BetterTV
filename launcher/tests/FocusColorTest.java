@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /** Small host-side checks for the pixel path, without a device or test framework. */
 public final class FocusColorTest {

@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /** Host-side checks for turning a banner into a white logo, without a device. */
 public final class LogoTest {

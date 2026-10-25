@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /** Host-side checks for finding MSN Weather's script bundle and service key, shaped like the real files. */
 public final class MsnTest {

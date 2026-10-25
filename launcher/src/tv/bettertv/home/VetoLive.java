@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /**
  * Veto's live channels on the home row: popular Hindi and English national news only, no regional,

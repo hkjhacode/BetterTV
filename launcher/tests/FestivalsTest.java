@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 /** Host-side checks for the festival calendar file and lookups, without a device. */
 public final class FestivalsTest {

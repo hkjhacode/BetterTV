@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs dumbtv home on the TV and gives it the HOME button.
+# Installs BetterTV on the TV and gives it the HOME button.
 #   ./launcher/install.sh            download the release APK (checksum-verified), install, take over HOME
 #   ./launcher/install.sh --build    build from source instead (needs a JDK and the Android SDK)
 #   ./launcher/install.sh --undo     hand HOME back to Amazon's launcher
@@ -9,11 +9,13 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # shellcheck disable=SC1091
 source version.env
-APK_URL=https://github.com/humblemuzzu/dumbtv/releases/download/launcher-v$VERSION/dumbtv-home.apk
+APK_URL=https://github.com/hkjhacode/BetterTV/releases/download/launcher-v$VERSION/bettertv-home.apk
 
-PKG=tv.dumbtv.home
+PKG=tv.bettertv.home
 GUARD=$PKG/$PKG.Guard
 OLD_GUARD=com.spocky.projengmenu/com.spocky.projengmenu.services.ProjectivyAccessibilityService
+# BetterTV's first builds were installed as tv.dumbtv.home; that copy stays installed but must not hold HOME
+RENAMED_GUARD=tv.dumbtv.home/tv.dumbtv.home.Guard
 ADB=${ADB:-adb}
 
 adb_() { "$ADB" ${ADB_SERIAL:+-s "$ADB_SERIAL"} "$@"; }
@@ -58,7 +60,7 @@ set_guard() {
   local cur
   cur=$(sh_ settings get secure enabled_accessibility_services | tr -d '\r')
   [[ $cur == null ]] && cur=
-  cur=$(printf '%s' "$cur" | tr ':' '\n' | { grep -vxF -e "$GUARD" -e "$PKG/.Guard" -e "$OLD_GUARD" -e '' || true; } | paste -sd: -)
+  cur=$(printf '%s' "$cur" | tr ':' '\n' | { grep -vxF -e "$GUARD" -e "$PKG/.Guard" -e "$OLD_GUARD" -e "$RENAMED_GUARD" -e '' || true; } | paste -sd: -)
   if [[ -n ${1:-} ]]; then cur=${cur:+$cur:}$1; fi
   # Clearing first makes the accessibility manager rebind a service whose process died.
   put_secure enabled_accessibility_services ""
@@ -83,7 +85,7 @@ if [[ $mode == undo ]]; then
   set_futurity off
   set_guard ""
   sh_ am start -a android.intent.action.MAIN -c android.intent.category.HOME >/dev/null 2>&1 || true
-  echo "HOME handed back to Amazon's launcher (dumbtv home stays installed: adb uninstall $PKG)"
+  echo "HOME handed back to Amazon's launcher (BetterTV stays installed: adb uninstall $PKG)"
   exit 0
 fi
 
@@ -92,7 +94,7 @@ case $dev_sdk in ''|*[!0-9]*) dev_sdk=28 ;; esac
 
 build_apk() {
   ./build.sh
-  APK=build/dumbtv-home.apk
+  APK=build/bettertv-home.apk
 }
 
 # adb ends its output with a blank line, so take the line that carries the result.
@@ -104,9 +106,9 @@ if [[ $mode == build ]]; then
   build_apk
 else
   mkdir -p build
-  APK=build/dumbtv-home-$VERSION.apk
+  APK=build/bettertv-home-$VERSION.apk
   if [[ ! -f $APK || $(sha256 "$APK") != "$APK_SHA256" ]]; then
-    echo "downloading dumbtv home $VERSION"
+    echo "downloading BetterTV $VERSION"
     # --retry-all-errors: GitHub's release CDN sometimes resets the first connection.
     curl -fL --retry 4 --retry-delay 3 --retry-all-errors --connect-timeout 20 --progress-bar \
       -o "$APK.part" "$APK_URL" || { echo "error: could not download $APK_URL" >&2; exit 1; }
@@ -129,7 +131,7 @@ fi
 case $out in
   *Success*) ;;
   *INSTALL_FAILED_UPDATE_INCOMPATIBLE*)
-    echo "error: the installed dumbtv home was signed with a different key (release vs your own build)." >&2
+    echo "error: the installed BetterTV was signed with a different key (release vs your own build)." >&2
     echo "  back up your settings:  adb pull /sdcard/Android/data/$PKG/files/home.conf" >&2
     echo "  then remove it:         adb uninstall $PKG    and run this again" >&2
     exit 1 ;;
@@ -153,10 +155,10 @@ if [[ $dev_sdk -lt 28 ]]; then
   fi
   front=$(sh_ dumpsys activity activities | grep -m1 mResumedActivity || true)
   if [[ $front != *"$PKG"* ]]; then
-    echo "error: dumbtv home is installed but not in front ($front)" >&2
+    echo "error: BetterTV is installed but not in front ($front)" >&2
     exit 1
   fi
-  echo "home: dumbtv (Keeper, no accessibility; sdk $dev_sdk)"
+  echo "home: BetterTV (Keeper, no accessibility; sdk $dev_sdk)"
   exit 0
 fi
 
@@ -182,7 +184,7 @@ if [[ $bound == 0 ]]; then
   denied=$(sh_ logcat -d -b all | grep A11yAuthorizer | grep -c "$PKG" || true)
   if [[ ${denied:-0} -gt 0 ]]; then
     echo "  this build only runs accessibility services Amazon trusts (FireOSFwk A11yAuthorizer)," >&2
-    echo "  so HOME cannot be taken over here. dumbtv home stays installed as a normal app;" >&2
+    echo "  so HOME cannot be taken over here. BetterTV stays installed as a normal app;" >&2
     echo "  remove it with: adb uninstall $PKG" >&2
   fi
   set_futurity off

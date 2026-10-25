@@ -1,9 +1,9 @@
-# dumbtv home
+# BetterTV
 
 A home screen for Fire TV that does one job: show your apps and your HDMI inputs.
 
 <p align="center">
-  <img src="../docs/assets/screens/home.png" alt="dumbtv home: a clock, an Apps row and an Inputs row" width="720">
+  <img src="../docs/assets/screens/home.png" alt="BetterTV: a clock, an Apps row and an Inputs row" width="720">
 </p>
 
 - **54 KB.** Plain Java and Android views. No AndroidX, Kotlin, Compose, Play
@@ -12,7 +12,7 @@ A home screen for Fire TV that does one job: show your apps and your HDMI inputs
   open a connection.
 - **No permissions on Fire OS 7 and 8.** It declares three (usage access, task
   order, boot completed), each limited to Android 8.1 and earlier, for the Fire OS 6
-  Keeper below. Check: `aapt2 dump permissions dumbtv-home.apk`.
+  Keeper below. Check: `aapt2 dump permissions bettertv-home.apk`.
 - **No ads, no recommended rows, no account, no analytics, no update checks.**
 - About 60–70 MB of memory with the home screen showing, about 37 MB while an app
   plays (measured on a Fire TV Edition television with 1.4 GB of RAM).
@@ -27,7 +27,7 @@ adb connect <tv-ip>:5555         # accept "Allow USB debugging?" on the TV
 ```
 
 The APK comes from this repository's
-[releases](https://github.com/humblemuzzu/dumbtv/releases/latest), and `install.sh`
+[releases](https://github.com/hkjhacode/BetterTV/releases/latest), and `install.sh`
 refuses it if the checksum differs from the one in `version.env`. Installing the
 APK by hand works, but HOME only switches over once `install.sh` (or
 `scripts/launcher.sh`) has set up the HOME hook described below.
@@ -57,7 +57,7 @@ Undo: `./launcher/install.sh --undo` gives HOME back to Amazon's launcher.
 | App names | on focus, always, never |
 | Clock | system, 24-hour, 12-hour |
 | Inputs row | shown, hidden |
-| Open inputs with | Automatic, the TV's app, dumbtv home (see below) |
+| Open inputs with | Automatic, the TV's app, BetterTV (see below) |
 | Background | black, graphite, midnight, image, adaptive, adaptive tint |
 | Image dim, wallpaper rotation | for image backgrounds |
 
@@ -78,7 +78,7 @@ without a TV banner, like the Appstore, start hidden; tick them to add them.
   Live TV claims every input and then opens its settings or a channel scan.
 - **The TV's app**: always hand the input to the TV's app, as releases up to 1.1
   did.
-- **dumbtv home**: always use the launcher's own screen. It uses Android's public
+- **BetterTV**: always use the launcher's own screen. It uses Android's public
   `TvView`: the picture, the input's name for a moment, and "No signal" when nothing
   is connected. Back returns to the home screen, and HOME releases the input at
   once. Nothing new is requested to do this.
@@ -88,7 +88,7 @@ without a TV banner, like the Appstore, start hidden; tick them to add them.
 Everything lives in one text file on the TV:
 
 ```
-/sdcard/Android/data/tv.dumbtv.home/files/home.conf
+/sdcard/Android/data/tv.bettertv.home/files/home.conf
 ```
 
 ```ini
@@ -132,8 +132,8 @@ No permission is needed: the launcher reads its own folder.
   rotation. While that folder has images, `wallpaper.jpg` is ignored.
 
 ```sh
-adb shell mkdir -p /sdcard/Android/data/tv.dumbtv.home/files/wallpapers
-adb push *.jpg /sdcard/Android/data/tv.dumbtv.home/files/wallpapers/
+adb shell mkdir -p /sdcard/Android/data/tv.bettertv.home/files/wallpapers
+adb push *.jpg /sdcard/Android/data/tv.bettertv.home/files/wallpapers/
 ```
 
 `rotate=daytime` matches wallpapers to the time of day by name: `morning` or `day`
@@ -160,7 +160,7 @@ protected package. Measured on a Fire OS 7 television:
    the alarm fires at once; `--undo` removes it.
 3. **Amazon's home is covered before it draws.** `Guard` keeps an overlay ready,
    with no surface while idle so it costs nothing during video, and removes it once
-   dumbtv home is on screen.
+   BetterTV is on screen.
 4. **Fire OS 8 (Android 11) only lets an app with a visible window start an
    activity.** The cover is that window, so `Guard` launches once it has drawn.
 
@@ -171,12 +171,12 @@ HOME from an app shows about 0.3 s of black, then this home screen.
 Fire OS 6.7 refuses third-party accessibility services, so it uses `Keeper`, a
 small foreground service:
 
-1. UsageStats (`appops set tv.dumbtv.home GET_USAGE_STATS allow`, granted by
+1. UsageStats (`appops set tv.bettertv.home GET_USAGE_STATS allow`, granted by
    `install.sh`) tells it when Amazon's launcher comes to the front.
-2. `ActivityManager.moveTaskToFront` brings dumbtv home back. That is not an
+2. `ActivityManager.moveTaskToFront` brings BetterTV back. That is not an
    activity launch, so the 5 s delay does not apply: under 0.25 s with a real
    remote.
-3. At boot there is no dumbtv task yet, so the first start uses an alarm.
+3. At boot there is no BetterTV task yet, so the first start uses an alarm.
 
 **Options › Open Amazon's home screen** pauses the takeover until another app is
 opened.
@@ -191,7 +191,7 @@ compiles against Android 7.1 so one APK runs on Fire OS 6, 7 and 8.
 brew install openjdk@17
 brew install --cask android-commandlinetools
 sdkmanager "platforms;android-25" "build-tools;34.0.0"
-./launcher/build.sh              # launcher/build/dumbtv-home.apk
+./launcher/build.sh              # launcher/build/bettertv-home.apk
 ./launcher/install.sh --build    # build, install, take over HOME
 ```
 
@@ -201,16 +201,16 @@ because build-tools 34's `d8` has crashed on classes from newer JDKs.
 
 Your build is signed with a key `build.sh` creates on first run, and Android will
 not update the release with it or the other way round. `install.sh` says so; back
-up `home.conf`, then `adb uninstall tv.dumbtv.home`.
+up `home.conf`, then `adb uninstall tv.bettertv.home`.
 
 ## Diagnostics
 
-Logcat has everything under the tag `dumbtvtest`. For problems at boot, when the
+Logcat has everything under the tag `bettertvtest`. For problems at boot, when the
 log has rotated by the time you can read it, the Keeper can also write a file that
 survives reboots:
 
 ```sh
-adb shell touch /sdcard/Android/data/tv.dumbtv.home/files/debug
+adb shell touch /sdcard/Android/data/tv.bettertv.home/files/debug
 ```
 
 While that file exists, log lines go to `files/keeper.log` in the same folder.
@@ -242,8 +242,8 @@ Delete both to stop.
 ## Releasing
 
 1. Bump `VERSION`, `VERSION_CODE` and `VERSION_NAME` in `version.env`.
-2. `./build.sh`, copy `build/dumbtv-home.apk` to `build/dumbtv-home-<VERSION>.apk`,
+2. `./build.sh`, copy `build/bettertv-home.apk` to `build/bettertv-home-<VERSION>.apk`,
    and put its SHA-256 in `version.env`.
-3. Upload it as `dumbtv-home.apk` to a release tagged `launcher-v<VERSION>`.
+3. Upload it as `bettertv-home.apk` to a release tagged `launcher-v<VERSION>`.
 4. `./launcher/release-check.sh` fails if the tag, the APK and the hash disagree.
    CI runs `--manifest` on every push.

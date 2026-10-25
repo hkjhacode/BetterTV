@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,22 +139,30 @@ final class Panchang {
      * The top bar's line: the tithi in force at {@code now} ("yyyy-MM-dd HH:mm") and when it ends,
      * from Drik ("चतुर्दशी 11:55 AM तक", then "पूर्णिमा कल 09:40 AM तक"), else Mithila's own words.
      */
-    static String tithiLine(Map<String, String> p, String now) {
+    static String tithiLine(Map<String, String> p, String now, boolean english) {
         String end = p.get("drik.end");
-        if (end != null && now.compareTo(end) < 0) return p.get("drik.name") + " " + until(end, now);
+        if (end != null && now.compareTo(end) < 0) return name(p.get("drik.name"), english) + " " + until(end, now, english);
         if (end != null) {
-            String next = p.get("drik.next"), nextEnd = p.get("drik.next.end");
-            if (nextEnd == null || now.compareTo(nextEnd) < 0) return nextEnd == null ? next : next + " " + until(nextEnd, now);
+            String next = name(p.get("drik.next"), english), nextEnd = p.get("drik.next.end");
+            if (nextEnd == null || now.compareTo(nextEnd) < 0) return nextEnd == null ? next : next + " " + until(nextEnd, now, english);
         }
         String t = p.get("तिथि");
         return t == null ? null : t.split(",")[0].trim();
     }
 
-    /** "11:55 AM तक", with "कल" when it ends on a later date than {@code now}. */
-    private static String until(String end, String now) {
+    /** "11:55 AM तक" (or "till 11:55 AM"), with "कल" / "tomorrow" when it ends on a later date than {@code now}. */
+    private static String until(String end, String now, boolean english) {
         int h = Integer.parseInt(end.substring(11, 13));
         String clock = String.format(java.util.Locale.ROOT, "%02d:%s %s", h % 12 == 0 ? 12 : h % 12, end.substring(14, 16), h < 12 ? "AM" : "PM");
-        return (end.substring(0, 10).compareTo(now.substring(0, 10)) > 0 ? "कल " : "") + clock + " तक";
+        boolean tomorrow = end.substring(0, 10).compareTo(now.substring(0, 10)) > 0;
+        if (english) return "till " + clock + (tomorrow ? " tomorrow" : "");
+        return (tomorrow ? "कल " : "") + clock + " तक";
+    }
+
+    /** The tithi's name in Hindi as stored, or in English. */
+    private static String name(String hindi, boolean english) {
+        int i = java.util.Arrays.asList(TITHI_HI).indexOf(hindi);
+        return english && i >= 0 ? TITHI_EN[i] : hindi;
     }
 
     /**

@@ -1,4 +1,4 @@
-package tv.dumbtv.home;
+package tv.bettertv.home;
 
 import android.app.ActivityManager;
 import android.app.AlarmManager;
@@ -14,11 +14,11 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 
 /**
- * Watches for Amazon's launcher coming back to the foreground and puts dumbtv home back on top.
+ * Watches for Amazon's launcher coming back to the foreground and puts BetterTV back on top.
  *
  * Fire OS 6.7 refuses third-party accessibility services, so Guard cannot run there. This service
  * needs no accessibility: it reads the foreground package from UsageStats (granted with
- * `appops set tv.dumbtv.home GET_USAGE_STATS allow`) and calls moveTaskToFront, which is not an
+ * `appops set tv.bettertv.home GET_USAGE_STATS allow`) and calls moveTaskToFront, which is not an
  * activity launch and therefore escapes the 5 s app-switch delay. The alarm path is only the
  * first-start fallback, before a Home task exists.
  */
@@ -90,10 +90,10 @@ public final class Keeper extends Service {
      * to stop). The file survives reboots, which is the point.
      */
     static void note(String msg) {
-        android.util.Log.i("dumbtvtest", msg);
+        android.util.Log.i("bettertvtest", msg);
         java.io.File marker = new java.io.File(
                 android.os.Environment.getExternalStorageDirectory(),
-                "Android/data/tv.dumbtv.home/files/debug");
+                "Android/data/tv.bettertv.home/files/debug");
         if (!marker.exists()) return;
         try {
             java.io.File f = new java.io.File(marker.getParentFile(), "keeper.log");
@@ -112,7 +112,7 @@ public final class Keeper extends Service {
     private void firstStart() {
         ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
         if (manager == null || !manager.getAppTasks().isEmpty()) return;
-        android.util.Log.i("dumbtvtest", "keeper: first start");
+        android.util.Log.i("bettertvtest", "keeper: first start");
         launch(System.currentTimeMillis());
     }
 
@@ -160,7 +160,7 @@ public final class Keeper extends Service {
                             : task.getTaskInfo().baseActivity.getClassName();
                     if (top.isEmpty() && base.isEmpty()) continue;
                     task.moveToFront();
-                    android.util.Log.i("dumbtvtest", "keeper: moveToFront");
+                    android.util.Log.i("bettertvtest", "keeper: moveToFront");
                     return;
                 }
             } catch (Throwable t) {
@@ -175,7 +175,7 @@ public final class Keeper extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 1, i, PendingIntent.FLAG_UPDATE_CURRENT);
         AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         am.setExact(AlarmManager.RTC, now, pi);
-        android.util.Log.i("dumbtvtest", "keeper: alarm set");
+        android.util.Log.i("bettertvtest", "keeper: alarm set");
     }
 
     @Override
