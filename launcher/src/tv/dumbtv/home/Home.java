@@ -2,6 +2,8 @@ package tv.dumbtv.home;
 
 import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.app.ActivityOptions;
+import android.view.animation.DecelerateInterpolator;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
@@ -61,6 +63,7 @@ import java.util.function.Consumer;
 public final class Home extends Activity {
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+    private static final DecelerateInterpolator EASE_OUT = new DecelerateInterpolator(2f);
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -70,6 +73,12 @@ public final class Home extends Activity {
     private boolean resumed, landed;
     private ImageView wall;
     private View shade, wash, dimmer, glow, wifi, more;
+    /** The opening / welcome-back curtain; {@link #away} is set while another app is in front. */
+    private FrameLayout curtain;
+    private ImageView curtainLogo;
+    private TextView helloText, helloHand;
+    private boolean away, ownScreen, welcoming;
+    private View content;
     private String washFor;
     private LinearLayout head;
     /** Where Up, Down and Back return to: the last tile used in each row, the last top-bar item. */
@@ -146,6 +155,7 @@ public final class Home extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        Crash.install(this);
         Future<List<Item>> catalog = io.submit(() -> Catalog.apps(this));
         cfg = Config.get(this);
         Ui.fonts(this);
@@ -189,6 +199,10 @@ public final class Home extends Activity {
         super.onResume();
         resumed = true;
         Guard.arrived(this);
+        if (away) {
+            away = false;
+            welcome();
+        }
         // put the Home button back if Fire OS dropped it (force-stop, app update)
         Guard.sync(this);
         cfg.refresh();
@@ -212,12 +226,16 @@ public final class Home extends Activity {
     @Override
     public void onEnterAnimationComplete() {
         Guard.shown();
+        playWelcome();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         resumed = false;
+        // anything that covers the home screen except our own screens counts as leaving
+        if (!ownScreen) away = true;
+        ownScreen = false;
         unregisterReceiver(time);
         if (moving != null) stopMoving();
     }
@@ -286,7 +304,7 @@ public final class Home extends Activity {
             View f = getCurrentFocus();
             if (f instanceof Tile && Catalog.APPS.equals(((Tile) f).kind)) menu((Tile) f);
             else if (f instanceof Tile && Catalog.NEWS.equals(((Tile) f).kind)) channelMenu((Tile) f);
-            else startActivity(new Intent(this, Options.class));
+            else own(new Intent(this, Options.class));
             return true;
         }
         return super.onKeyDown(code, e);
@@ -345,6 +363,23 @@ public final class Home extends Activity {
         poster.addView(wallTitle);
         poster.addView(wallLine);
         root.addView(poster, new FrameLayout.LayoutParams(MATCH, WRAP, Gravity.TOP | Gravity.END));
+        // The curtain for opening and coming back: black, the app's logo, and a line with a waving hand.
+        curtain = new FrameLayout(this);
+        curtain.setBackgroundColor(0xFF000000);
+        curtain.setVisibility(View.GONE);
+        curtainLogo = new ImageView(this);
+        curtain.addView(curtainLogo, new FrameLayout.LayoutParams(dp(200), dp(120), Gravity.CENTER));
+        LinearLayout words = new LinearLayout(this);
+        words.setGravity(Gravity.CENTER);
+        helloHand = Ui.text(this, 34, Ui.TEXT, Ui.outfitMedium);
+        helloHand.setPadding(0, 0, dp(14), 0);
+        helloText = Ui.text(this, 34, Ui.TEXT, Ui.outfitLight);
+        words.addView(helloHand);
+        words.addView(helloText);
+        FrameLayout.LayoutParams wlp = new FrameLayout.LayoutParams(WRAP, WRAP, Gravity.CENTER);
+        wlp.topMargin = dp(120);
+        curtain.addView(words, wlp);
+        root.addView(curtain, new FrameLayout.LayoutParams(MATCH, MATCH));
 
         // Two stops: the home screen itself, and below it the live news. The wallpaper darkens
         // as the page moves down.
@@ -365,6 +400,7 @@ public final class Home extends Activity {
         page.setOnScrollChangeListener((v, x, y, ox, oy) ->
                 dimmer.setAlpha(Math.min(1f, y / (float) Math.max(1, v.getHeight() / 2))));
         root.addView(page, new FrameLayout.LayoutParams(MATCH, MATCH));
+        content = page;
         LinearLayout sections = new LinearLayout(this);
         sections.setOrientation(LinearLayout.VERTICAL);
         sections.setClipChildren(false);
@@ -392,7 +428,7 @@ public final class Home extends Activity {
         when.addView(clock);
         when.addView(date);
         head.addView(when, new LinearLayout.LayoutParams(0, WRAP, 1f));
-        weather = pill(0, "", v -> startActivity(new Intent(this, Weather.class)));
+        weather = pill(0, "", v -> own(new Intent(this, Weather.class)));
         weather.setVisibility(View.GONE);
         head.addView(weather);
         panchang = pill(0, "पञ्चाङ्ग", v -> showPanchang());
@@ -401,7 +437,7 @@ public final class Home extends Activity {
         wifi = pill(R.drawable.ic_wifi, "Wi-Fi", v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS), null));
         wifi.setId(View.generateViewId());
         head.addView(wifi);
-        head.addView(circle(R.drawable.ic_tune, "Options", v -> startActivity(new Intent(this, Options.class))));
+        head.addView(circle(R.drawable.ic_tune, "Options", v -> own(new Intent(this, Options.class))));
         head.addView(circle(R.drawable.ic_settings, "Settings", v -> openSettings()));
         column.addView(head, new LinearLayout.LayoutParams(MATCH, WRAP));
 
@@ -475,7 +511,7 @@ public final class Home extends Activity {
         more.setFocusable(true);
         more.setClickable(true);
         more.setBackground(Ui.round(0x1FFFFFFF, dp(16)));
-        more.setOnClickListener(v -> startActivity(new Intent(this, Apps.class)));
+        more.setOnClickListener(v -> own(new Intent(this, Apps.class)));
         more.setOnFocusChangeListener((v, has) -> {
             v.animate().scaleX(has ? 1.1f : 1f).scaleY(has ? 1.1f : 1f).setDuration(200).start();
             v.setBackground(Ui.round(has ? 0xE6FFFFFF : 0x1FFFFFFF, dp(16)));
@@ -489,6 +525,7 @@ public final class Home extends Activity {
         mlp.gravity = Gravity.CENTER_HORIZONTAL;
         mlp.topMargin = dp(14);
         below.addView(more, mlp);
+        curtain.bringToFront();
         return root;
     }
 
@@ -1132,11 +1169,105 @@ public final class Home extends Activity {
 
     private void launch(Intent i, String pkg) {
         if (Guard.AMAZON.equals(pkg)) Guard.pause();
+        Intent go = i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        if (pkg == null || "quick".equals(cfg.get(Config.MOTION))) {
+            start(go);
+            return;
+        }
+        bye(pkg);
+        // the app opens behind the curtain once the logo has rushed forward
+        curtain.postDelayed(() -> start(go), 520);
+    }
+
+    /** Opens one of BetterTV's own screens: no curtain on the way back. */
+    private void own(Intent i) {
+        ownScreen = true;
+        startActivity(i);
+    }
+
+    private void start(Intent go) {
         try {
-            startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
+            startActivity(go, ActivityOptions.makeCustomAnimation(this, R.anim.screen_in, R.anim.screen_out).toBundle());
         } catch (ActivityNotFoundException | SecurityException e) {
+            curtain.setVisibility(View.GONE);
             Toast.makeText(this, "Could not open that", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /**
+     * Like Netflix opening: the screen goes dark and the app's logo rushes toward you, with "Bye"
+     * and a waving hand. All GPU property animations on views that already exist.
+     */
+    private void bye(String pkg) {
+        Item it = null;
+        for (Item a : apps) if (a.id.equals(pkg)) it = a;
+        curtainLogo.setImageBitmap(it == null ? null : it.logo);
+        curtainLogo.setScaleX(0.7f);
+        curtainLogo.setScaleY(0.7f);
+        curtainLogo.setAlpha(1f);
+        curtain.setAlpha(0f);
+        curtain.setVisibility(View.VISIBLE);
+        say("Bye");
+        curtain.animate().alpha(1f).setDuration(160).start();
+        curtainLogo.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(EASE_OUT).withEndAction(() ->
+                curtainLogo.animate().scaleX(5f).scaleY(5f).alpha(0f).setDuration(320)
+                        .setInterpolator(new android.view.animation.AccelerateInterpolator(2f)).start()).start();
+        if (content != null) content.animate().scaleX(1.08f).scaleY(1.08f).setDuration(480).start();
+    }
+
+    /**
+     * Coming back: black at once (the Home button's cover is black too), then, once the window is
+     * really on screen, "Welcome back" with a waving hand and the home screen zooming in to rest.
+     */
+    private void welcome() {
+        if ("quick".equals(cfg.get(Config.MOTION))) {
+            curtain.setVisibility(View.GONE);
+            return;
+        }
+        curtainLogo.setImageDrawable(null);
+        helloText.setText("");
+        helloHand.setText("");
+        curtain.animate().cancel();
+        curtain.setAlpha(1f);
+        curtain.setVisibility(View.VISIBLE);
+        if (content != null) {
+            content.setScaleX(1.08f);
+            content.setScaleY(1.08f);
+        }
+        welcoming = true;
+        // onEnterAnimationComplete starts it; this covers a return that has no enter animation
+        curtain.postDelayed(this::playWelcome, 900);
+    }
+
+    private void playWelcome() {
+        if (!welcoming) return;
+        welcoming = false;
+        say("Welcome back");
+        if (content != null) {
+            content.animate().scaleX(1f).scaleY(1f).setStartDelay(700).setDuration(520).setInterpolator(EASE_OUT).start();
+        }
+        curtain.animate().alpha(0f).setStartDelay(700).setDuration(420)
+                .withEndAction(() -> curtain.setVisibility(View.GONE)).start();
+    }
+
+    private void say(String words) {
+        helloText.setText(words);
+        helloHand.setText("\uD83D\uDC4B");
+        helloText.setAlpha(0f);
+        helloHand.setAlpha(0f);
+        helloText.animate().alpha(1f).setStartDelay(80).setDuration(220).start();
+        helloHand.animate().alpha(1f).setStartDelay(80).setDuration(220).start();
+        helloHand.post(() -> {
+            helloHand.setPivotX(helloHand.getWidth() * 0.7f);
+            helloHand.setPivotY(helloHand.getHeight() * 0.9f);
+        });
+        ValueAnimator wave = ValueAnimator.ofFloat(0f, 1f);
+        wave.setDuration(1100);
+        wave.addUpdateListener(a -> {
+            float k = (Float) a.getAnimatedValue();
+            helloHand.setRotation((float) Math.sin(k * Math.PI * 6) * 20f * (1 - k));
+        });
+        wave.start();
     }
 
     private void menu(Tile t) {

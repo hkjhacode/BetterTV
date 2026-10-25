@@ -104,7 +104,11 @@ final class Config {
             new String[] {"bettertv", "amazon"},
             new String[] {"BetterTV", "Amazon's home screen"});
 
-    static final Choice[] CHOICES = {HOME, LANGUAGE, COLOURS, ROW, CENTER, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
+    static final Choice MOTION = new Choice("motion", "Opening and coming back", "cinematic",
+            new String[] {"cinematic", "quick"},
+            new String[] {"Cinematic (logo zoom, Bye / Welcome back)", "Quick"});
+
+    static final Choice[] CHOICES = {HOME, MOTION, LANGUAGE, COLOURS, ROW, CENTER, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
 
     /** Folder of wallpapers, next to home.conf, that Background › Image file rotates through. */
     static final String WALLPAPERS = "wallpapers";

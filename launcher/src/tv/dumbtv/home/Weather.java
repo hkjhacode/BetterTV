@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.format.DateFormat;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
@@ -23,20 +22,38 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
-/** Open-Meteo (free, no key): the temperature beside the clock, and this forecast screen. */
+/**
+ * Weather from MSN (Bing) Weather's own data service (see {@link Msn}): the pill beside the clock
+ * and this screen. Open-Meteo stands in for the pill when MSN does not answer.
+ */
 public final class Weather extends Activity {
     private static final String NAME = "weather.name", LAT = "weather.lat", LON = "weather.lon";
-    /** The place and state as MSN names them, for its page; NAME is what this screen shows. */
-    private static final String PLACE = "weather.place", STATE = "weather.state";
     private static final long FRESH_MS = 30 * 60_000L;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+
+    /** Places offered before searching: big cities, then the family's own places. {name, state, lat, lon}. */
+    static final String[][] PLACES = {
+        {"Palam", "Delhi", "28.5904", "77.0780"},
+        {"New Delhi", "Delhi", "28.6139", "77.2090"},
+        {"Mumbai", "Maharashtra", "19.0760", "72.8777"},
+        {"Kolkata", "West Bengal", "22.5726", "88.3639"},
+        {"Bengaluru", "Karnataka", "12.9716", "77.5946"},
+        {"Chennai", "Tamil Nadu", "13.0827", "80.2707"},
+        {"Hyderabad", "Telangana", "17.3850", "78.4867"},
+        {"Patna", "Bihar", "25.5941", "85.1356"},
+        {"Darbhanga", "Bihar", "26.1522", "85.8971"},
+        {"Gangta", "Bihar", "25.0389", "86.5031"},
+        {"Kharagpur", "Bihar", "25.1245", "86.5558"},
+        {"Bariarpur", "Bihar", "25.2879", "86.5764"},
+        {"Deoghar", "Jharkhand", "24.4898", "86.6990"},
+        {"Haridwar", "Uttarakhand", "29.9479", "78.1603"},
+        {"Vrindavan", "Uttar Pradesh", "27.5811", "77.6966"},
+    };
 
     private static String now;
     private static long nowAt;
@@ -49,7 +66,7 @@ public final class Weather extends Activity {
     private LinearLayout days;
     private android.widget.GridLayout cards;
 
-    /** "☀ 26°C" for the home screen, fetched at most every 30 minutes; null while unknown. */
+    /** "☾ 22°C · AQI 261 · ☂ 4 PM" for the home screen, fetched at most every 30 minutes. */
     static void current(Config cfg, ExecutorService io, Handler ui, Consumer<String> show) {
         String where = lat(cfg) + "," + lon(cfg);
         if (now != null && where.equals(nowFor) && System.currentTimeMillis() - nowAt < FRESH_MS) {
@@ -57,65 +74,40 @@ public final class Weather extends Activity {
             return;
         }
         io.execute(() -> {
+            String text;
             try {
-                JSONObject j = new JSONObject(Live.get(url(cfg, "&current=temperature_2m,weather_code,is_day"
-                        + "&hourly=precipitation_probability&forecast_days=2")));
-                JSONObject c = j.getJSONObject("current");
-                String text = glyph(c.getInt("weather_code"), c.optInt("is_day", 1) == 1) + " "
-                        + Math.round(c.getDouble("temperature_2m")) + "°C";
-                Map<String, String> msn = msn(cfg);
-                if (msn.containsKey("temp")) {
-                    text = glyph(c.getInt("weather_code"), c.optInt("is_day", 1) == 1) + " " + msn.get("temp") + "°C";
-                }
-                int aqi = msn.containsKey("aqi") ? Integer.parseInt(msn.get("aqi")) : aqi(cfg);
-                if (aqi >= 0) text += "  ·  AQI " + aqi;
-                String rain = rain(j);
+                JSONObject w = Msn.overview(cfg, lat(cfg), lon(cfg));
+                JSONObject c = w.getJSONObject("current");
+                text = glyph(c.optString("cap"), !"n".equals(c.optString("daytime"))) + " "
+                        + Math.round(c.getDouble("temp")) + "°C";
+                if (c.has("aqi")) text += "  ·  AQI " + Math.round(c.getDouble("aqi"));
+                String rain = rain(w, c.optString("created"));
                 if (rain != null) text += "  ·  " + rain;
-                String shown = text;
-                now = text;
-                nowAt = System.currentTimeMillis();
-                nowFor = where;
-                ui.post(() -> show.accept(shown));
-            } catch (IOException | JSONException ignored) {
-                // no network: keep whatever is showing and try again on the next visit
+            } catch (IOException | JSONException | RuntimeException bing) {
+                try {
+                    JSONObject c = new JSONObject(Live.get("https://api.open-meteo.com/v1/forecast?latitude=" + lat(cfg)
+                            + "&longitude=" + lon(cfg) + "&current=temperature_2m")).getJSONObject("current");
+                    text = Math.round(c.getDouble("temperature_2m")) + "°C";
+                } catch (IOException | JSONException ignored) {
+                    return; // no network: keep whatever is showing and try again on the next visit
+                }
             }
+            String shown = text;
+            now = text;
+            nowAt = System.currentTimeMillis();
+            nowFor = where;
+            ui.post(() -> show.accept(shown));
         });
     }
 
-    /** Today's numbers from MSN (Bing) Weather for the chosen place; empty when it does not answer. */
-    private static Map<String, String> msn(Config cfg) {
-        try {
-            return Msn.fetch(Msn.url(cfg.get(PLACE, "Palam"), cfg.get(STATE, "Delhi"), lat(cfg), lon(cfg)));
-        } catch (IOException | RuntimeException e) {
-            return new java.util.HashMap<>();
-        }
-    }
-
-    /** The US AQI now from Open-Meteo's air-quality service, or -1. */
-    private static int aqi(Config cfg) {
-        try {
-            JSONObject a = new JSONObject(Live.get("https://air-quality-api.open-meteo.com/v1/air-quality?latitude="
-                    + lat(cfg) + "&longitude=" + lon(cfg) + "&current=us_aqi,pm2_5,pm10")).getJSONObject("current");
-            return a.isNull("us_aqi") ? -1 : a.getInt("us_aqi");
-        } catch (IOException | JSONException e) {
-            return -1;
-        }
-    }
-
-    /** {@link Rain#check} over the forecast's hourly chances; the clock is the place's own. */
-    private static String rain(JSONObject j) throws JSONException {
-        JSONObject h = j.getJSONObject("hourly");
-        JSONArray t = h.getJSONArray("time"), p = h.getJSONArray("precipitation_probability");
-        String[] times = new String[t.length()];
-        int[] chance = new int[t.length()];
-        for (int i = 0; i < times.length; i++) {
-            times[i] = t.getString(i);
-            chance[i] = p.isNull(i) ? -1 : p.getInt(i);
-        }
-        String now = j.getJSONObject("current").getString("time");
-        String today = now.substring(0, 10);
+    /** {@link Rain#check} over MSN's hourly rain chances; "now" is MSN's own timestamp for the place. */
+    private static String rain(JSONObject w, String created) throws JSONException {
+        Object[] h = Msn.hourly(w);
+        String[] times = (String[]) h[0];
+        if (times.length == 0 || created.length() < 13) return null;
+        String today = created.substring(0, 10);
         String tomorrow = times[times.length - 1].substring(0, 10);
-        return Rain.check(times, chance, today, tomorrow, Integer.parseInt(now.substring(11, 13)));
+        return Rain.check(times, (int[]) h[1], today, tomorrow, Integer.parseInt(created.substring(11, 13)));
     }
 
     private static String lat(Config cfg) {
@@ -126,34 +118,16 @@ public final class Weather extends Activity {
         return cfg.get(LON, "77.0780");
     }
 
-    private static String url(Config cfg, String fields) {
-        return "https://api.open-meteo.com/v1/forecast?latitude=" + lat(cfg) + "&longitude=" + lon(cfg)
-                + "&timezone=auto" + fields;
-    }
-
-    /** WMO weather code to a plain text symbol; U+FE0E keeps it out of colour emoji. */
-    static String glyph(int code, boolean day) {
-        String g;
-        if (code <= 1) g = day ? "☀" : "☾";
-        else if (code <= 3) g = "☁";
-        else if (code <= 48) g = "≋";
-        else if (code >= 71 && code <= 77 || code == 85 || code == 86) g = "❄";
-        else if (code >= 95) g = "☈";
-        else g = "☂";
+    /** MSN's caption to a plain text symbol; U+FE0E keeps it out of colour emoji. */
+    static String glyph(String cap, boolean day) {
+        String c = cap.toLowerCase(Locale.ROOT), g;
+        if (c.contains("thunder") || c.contains("storm")) g = "☈";
+        else if (c.contains("rain") || c.contains("shower") || c.contains("drizzle")) g = "☂";
+        else if (c.contains("snow") || c.contains("sleet")) g = "❄";
+        else if (c.contains("fog") || c.contains("haze") || c.contains("mist") || c.contains("smoke")) g = "≋";
+        else if (c.contains("cloud") || c.contains("overcast")) g = "☁";
+        else g = day ? "☀" : "☾";
         return g + "︎";
-    }
-
-    static String words(int code) {
-        if (code == 0) return "Clear";
-        if (code <= 2) return "Partly cloudy";
-        if (code == 3) return "Cloudy";
-        if (code <= 48) return "Fog";
-        if (code <= 57) return "Drizzle";
-        if (code <= 67) return "Rain";
-        if (code <= 77) return "Snow";
-        if (code <= 82) return "Showers";
-        if (code <= 86) return "Snow showers";
-        return "Thunderstorm";
     }
 
     @Override
@@ -212,96 +186,67 @@ public final class Weather extends Activity {
         current.setText("…");
         details.setText("");
         days.removeAllViews();
+        cards.removeAllViews();
         io.execute(() -> {
             try {
-                JSONObject j = new JSONObject(Live.get(url(cfg,
-                        "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
-                                + ",wind_gusts_10m,wind_direction_10m,surface_pressure,cloud_cover,dew_point_2m,visibility,uv_index"
-                                + "&hourly=precipitation_probability,precipitation"
-                                + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
-                                + ",sunrise,sunset,uv_index_max,precipitation_sum&forecast_days=7")));
-                JSONObject air = null;
-                try {
-                    air = new JSONObject(Live.get("https://air-quality-api.open-meteo.com/v1/air-quality?latitude="
-                            + lat(cfg) + "&longitude=" + lon(cfg) + "&current=us_aqi,pm2_5,pm10")).getJSONObject("current");
-                } catch (IOException | JSONException ignored) {
-                    // the forecast still shows without air quality
-                }
-                JSONObject airNow = air;
-                Map<String, String> bing = msn(cfg);
+                JSONObject w = Msn.overview(cfg, lat(cfg), lon(cfg));
                 ui.post(() -> {
                     try {
-                        show(j);
-                        details(j, airNow, bing);
-                    } catch (JSONException e) {
+                        show(w);
+                    } catch (JSONException | RuntimeException e) {
                         current.setText("Weather unavailable");
                     }
                 });
             } catch (IOException | JSONException e) {
-                ui.post(() -> current.setText("No connection"));
+                ui.post(() -> current.setText("No connection to MSN Weather"));
             }
         });
     }
 
-    private void show(JSONObject j) throws JSONException {
-        JSONObject c = j.getJSONObject("current");
-        int code = c.getInt("weather_code");
-        current.setText(glyph(code, c.optInt("is_day", 1) == 1) + " " + Math.round(c.getDouble("temperature_2m")) + "°C");
-        details.setText(words(code) + "  ·  feels like " + Math.round(c.getDouble("apparent_temperature"))
-                + "°  ·  humidity " + c.getInt("relative_humidity_2m") + "%  ·  wind "
-                + Math.round(c.getDouble("wind_speed_10m")) + " km/h");
-        JSONObject d = j.getJSONObject("daily");
-        JSONArray time = d.getJSONArray("time"), codes = d.getJSONArray("weather_code");
-        JSONArray hi = d.getJSONArray("temperature_2m_max"), lo = d.getJSONArray("temperature_2m_min");
-        JSONArray rain = d.getJSONArray("precipitation_probability_max");
-        SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
-        for (int i = 0; i < time.length(); i++) {
+    private void show(JSONObject w) throws JSONException {
+        JSONObject c = w.getJSONObject("current");
+        JSONArray all = w.getJSONObject("forecast").getJSONArray("days");
+        JSONObject today = all.getJSONObject(0), d = today.getJSONObject("daily"), sky = today.getJSONObject("almanac");
+        current.setText(glyph(c.optString("cap"), !"n".equals(c.optString("daytime"))) + " " + Math.round(c.getDouble("temp")) + "°C");
+        JSONObject part = d.optJSONObject("n".equals(c.optString("daytime")) ? "night" : "day");
+        details.setText(c.optString("cap") + "  ·  feels like " + Math.round(c.getDouble("feels")) + "°"
+                + (part == null ? "" : "\n" + part.optString("summary")) + "\nMSN Weather · forecast by Foreca");
+
+        SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT), eee = new SimpleDateFormat("EEE", Locale.ENGLISH);
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject x = all.getJSONObject(i).getJSONObject("daily");
             String day;
             try {
-                Date date = iso.parse(time.getString(i));
-                day = i == 0 ? "Today" : DateFormat.format("EEE", date).toString();
+                day = i == 0 ? "Today" : eee.format(iso.parse(x.getString("valid").substring(0, 10)));
             } catch (ParseException e) {
-                day = time.getString(i);
+                day = "";
             }
-            TextView t = Ui.text(this, 16, Ui.TEXT, Ui.outfitLight);
+            TextView t = Ui.text(this, 15, Ui.TEXT, Ui.outfitLight);
             t.setGravity(Gravity.CENTER);
-            t.setLineSpacing(dp(6), 1f);
-            t.setText(day + "\n" + glyph(codes.getInt(i), true) + "\n" + Math.round(hi.getDouble(i)) + "°  "
-                    + Math.round(lo.getDouble(i)) + "°\n" + (rain.isNull(i) ? "" : "☂︎ " + rain.getInt(i) + "%"));
+            t.setLineSpacing(dp(5), 1f);
+            t.setText(day + "\n" + glyph(x.optString("pvdrCap"), true) + "\n" + Math.round(x.getDouble("tempHi")) + "°  "
+                    + Math.round(x.getDouble("tempLo")) + "°\n☂︎ " + Math.round(x.optDouble("precip", 0)) + "%");
             days.addView(t, new LinearLayout.LayoutParams(0, WRAP, 1f));
         }
+
+        String rain = rain(w, c.optString("created"));
+        if (c.has("aqi")) card("Air quality", Math.round(c.getDouble("aqi")) + "", c.optString("aqiSeverity") + "\n" + c.optString("primaryPollutant"));
+        card("Rain check", rain == null ? "No rain" : rain, Math.round(d.optDouble("precip", 0)) + "% chance today");
+        card("Wind", Math.round(c.getDouble("windSpd")) + " km/h", "Gusts " + Math.round(c.optDouble("windGust", 0))
+                + " km/h\nFrom " + compass(c.optDouble("windDir", 0)));
+        card("Humidity", Math.round(c.getDouble("rh")) + "%", "Dew point " + Math.round(c.optDouble("dewPt", 0)) + "°");
+        card("UV", Math.round(c.optDouble("uv", 0)) + "", c.optString("uvDesc") + " · today's max " + Math.round(d.optDouble("uv", 0)));
+        card("Visibility", Math.round(c.optDouble("vis", 0)) + " km", "Cloud cover " + Math.round(c.optDouble("cloudCover", 0)) + "%");
+        card("Pressure", Math.round(c.optDouble("baro", 0)) + " mb", "");
+        card("Temperature", Math.round(d.getDouble("tempHi")) + "° / " + Math.round(d.getDouble("tempLo")) + "°",
+                "Feels " + Math.round(d.optDouble("feelsHi", 0)) + "° / " + Math.round(d.optDouble("feelsLo", 0)) + "°");
+        card("Sun", time(sky.optString("sunrise")) + " ↑", time(sky.optString("sunset")) + " ↓");
+        card("Moon", sky.optString("moonPhase"), "Rises " + time(sky.optString("moonrise")) + " · sets " + time(sky.optString("moonset")));
     }
 
-    /** The rest of MSN Weather's sections, as cards: air, rain, wind, sun, moon and more. */
-    private void details(JSONObject j, JSONObject air, Map<String, String> bing) throws JSONException {
-        cards.removeAllViews();
-        JSONObject c = j.getJSONObject("current"), d = j.getJSONObject("daily");
-        String rain = rain(j);
-        double rain24 = 0;
-        JSONArray amount = j.getJSONObject("hourly").getJSONArray("precipitation");
-        for (int i = 0; i < Math.min(24, amount.length()); i++) rain24 += amount.optDouble(i, 0);
-        if (bing.containsKey("temp")) {
-            current.setText(current.getText().toString().replaceAll("-?\\d+°C$", bing.get("temp") + "°C"));
-            details.setText(bing.getOrDefault("condition", "") + "  ·  feels like " + bing.getOrDefault("feels", "?")
-                    + (bing.containsKey("summary") ? "\n" + bing.get("summary") : "") + "\nMSN Weather");
-        }
-        if (bing.containsKey("aqi")) {
-            card("Air quality", bing.get("aqi"), bing.getOrDefault("aqiBand", "") + "\n" + bing.getOrDefault("pollutant", ""));
-        } else if (air != null && !air.isNull("us_aqi")) {
-            int a = air.getInt("us_aqi");
-            card("Air quality", a + "", Rain.aqiWord(a) + "\nPM2.5 " + Math.round(air.optDouble("pm2_5")) + " · PM10 "
-                    + Math.round(air.optDouble("pm10")) + " µg/m³");
-        }
-        card("Rain check", rain == null ? "No rain" : rain, String.format(Locale.ROOT, "%.1f mm in the next 24 h", rain24));
-        card("Wind", bing.getOrDefault("wind", Math.round(c.getDouble("wind_speed_10m")) + " km/h"), "Gusts " + Math.round(c.getDouble("wind_gusts_10m"))
-                + " km/h\nFrom " + compass(c.getDouble("wind_direction_10m")));
-        card("Humidity", bing.getOrDefault("humidity", c.getInt("relative_humidity_2m") + "%"),
-                "Dew point " + bing.getOrDefault("dew", Math.round(c.getDouble("dew_point_2m")) + "°"));
-        card("UV", Math.round(c.getDouble("uv_index")) + "", "Today's max " + Math.round(d.getJSONArray("uv_index_max").getDouble(0)));
-        card("Visibility", bing.getOrDefault("visibility", Math.round(c.getDouble("visibility") / 1000) + " km"), "Cloud cover " + c.getInt("cloud_cover") + "%");
-        card("Pressure", bing.getOrDefault("pressure", Math.round(c.getDouble("surface_pressure")) + " mb"), "");
-        card("Sun", d.getJSONArray("sunrise").getString(0).substring(11) + " ↑", d.getJSONArray("sunset").getString(0).substring(11) + " ↓");
-        card("Moon", Math.round(Rain.moonLit(System.currentTimeMillis()) * 100) + "%", "of the moon lit tonight");
+    /** "2026-10-24T06:27:33+05:30" is "06:27". */
+    private static String time(String iso) {
+        return iso.length() >= 16 ? iso.substring(11, 16) : "–";
     }
 
     private void card(String title, String big, String small) {
@@ -357,30 +302,28 @@ public final class Weather extends Activity {
         d.show();
     }
 
-    /** Big cities and the family's places; the last line opens a search for anywhere else. */
+    /** Big cities and the family's places; the last line opens a search for anywhere else in India. */
     private void places() {
-        String[] names = new String[Msn.PLACES.length + 1];
-        for (int i = 0; i < Msn.PLACES.length; i++) names[i] = Msn.PLACES[i][0] + ", " + Msn.PLACES[i][1];
+        String[] names = new String[PLACES.length + 1];
+        for (int i = 0; i < PLACES.length; i++) names[i] = PLACES[i][0] + ", " + PLACES[i][1];
         names[names.length - 1] = "Search another place…";
         new AlertDialog.Builder(this, Ui.DIALOG)
                 .setTitle("Weather location")
                 .setItems(names, (d, which) -> {
-                    if (which == Msn.PLACES.length) {
+                    if (which == PLACES.length) {
                         search();
                         return;
                     }
-                    String[] p = Msn.PLACES[which];
+                    String[] p = PLACES[which];
                     choose(p[0], p[1], p[2], p[3]);
                 })
                 .show();
     }
 
     private void choose(String place, String state, String lat, String lon) {
-        cfg.set(PLACE, place);
-        cfg.set(STATE, state);
         cfg.set(LAT, lat);
         cfg.set(LON, lon);
-        cfg.set(NAME, place + ", " + state);
+        cfg.set(NAME, place + (state.isEmpty() ? "" : ", " + state));
         now = null;
         load();
     }
@@ -408,7 +351,7 @@ public final class Weather extends Activity {
         for (int i = 0; i < names.length; i++) {
             JSONObject r = results.optJSONObject(i);
             StringBuilder s = new StringBuilder(r.optString("name"));
-            for (String k : new String[] {"admin2", "admin1", "country"}) {
+            for (String k : new String[] {"admin2", "admin1"}) {
                 if (!r.optString(k).isEmpty()) s.append(", ").append(r.optString(k));
             }
             names[i] = s.toString();

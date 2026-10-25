@@ -62,6 +62,8 @@ public final class Options extends Activity {
             finish();
         }));
 
+        list.addView(action("Crash reports", this::crashes));
+
         TextView about = Ui.text(this, 13, Ui.FAINT, Ui.MEDIUM);
         about.setLineSpacing(0, 1.4f);
         about.setPadding(dp(16), dp(28), 0, 0);
@@ -198,6 +200,27 @@ public final class Options extends Activity {
                 .setMultiChoiceItems(names, on, (d, which, checked) ->
                         Catalog.setShown(cfg, kind, items.get(which), checked))
                 .setPositiveButton("Done", null)
+                .show();
+    }
+
+    /** The newest crash reports from crash.log, or a note that there are none. */
+    private void crashes() {
+        java.io.File f = new java.io.File(cfg.dir, Crash.FILE);
+        String text = "No crashes recorded.";
+        if (f.isFile()) {
+            try {
+                byte[] all = java.nio.file.Files.readAllBytes(f.toPath());
+                int from = Math.max(0, all.length - 6000);
+                text = new String(all, from, all.length - from, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (java.io.IOException | RuntimeException e) {
+                text = "Could not read " + f;
+            }
+        }
+        new AlertDialog.Builder(this, Ui.DIALOG)
+                .setTitle("Crash reports")
+                .setMessage(text + "\n\nFile: " + f)
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Clear", (d, w) -> f.delete())
                 .show();
     }
 

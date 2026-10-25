@@ -138,6 +138,7 @@ public final class Guard extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         running = this;
+        Crash.install(this);
         // Amazon's home may already be on screen (boot, or this app just updated): no new window
         // event would come for it, so put ours in front once.
         if (!"amazon".equals(Config.get(this).get(Config.HOME)) && !paused) handler.postDelayed(launch, 400);

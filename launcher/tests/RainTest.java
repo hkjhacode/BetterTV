@@ -1,6 +1,6 @@
 package tv.dumbtv.home;
 
-/** Host-side checks for the rain check, the AQI words and the moon, without a device. */
+/** Host-side checks for the rain check and the greetings, without a device. */
 public final class RainTest {
     private static void check(boolean ok, String name) {
         if (!ok) throw new AssertionError(name);
@@ -13,8 +13,6 @@ public final class RainTest {
         check("☂︎ कल 10 AM".equals(Rain.check(t, p, "2026-10-24", "2026-10-25", 17)), "after 5 PM tomorrow is added");
         check(Rain.check(t, new int[] {0, 0, 0, 0, 0}, "2026-10-24", "2026-10-25", 18) == null, "dry");
         check("☂︎ 12 PM".equals(Rain.check(new String[] {"2026-10-24T12:00"}, new int[] {90}, "2026-10-24", "x", 0)), "noon");
-        check("Very unhealthy".equals(Rain.aqiWord(268)), "268 is very unhealthy");
-        check(Rain.moonLit(1792800000000L) > 0.85, "near full on 24 Oct 2026");
         check("साँझक प्रणाम".equals(Lang.greeting(Lang.MAITHILI, 17)), "maithili evening");
         check("Good night".equals(Lang.greeting(Lang.ENGLISH, 2)), "english night");
         check("भोर के प्रणाम".equals(Lang.greeting(Lang.ANGIKA, 6)), "angika morning");

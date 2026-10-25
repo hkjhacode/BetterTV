@@ -6,5 +6,13 @@
         <item name="android:colorAccent">#FF3D8BFF</item>
         <item name="android:windowShowWallpaper">false</item>
         <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@style/Screens</item>
+    </style>
+
+    <style name="Screens" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/screen_in</item>
+        <item name="android:activityOpenExitAnimation">@anim/screen_out</item>
+        <item name="android:activityCloseEnterAnimation">@anim/screen_in</item>
+        <item name="android:activityCloseExitAnimation">@anim/screen_out</item>
     </style>
 </resources>
