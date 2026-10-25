@@ -67,7 +67,7 @@ public final class Keeper extends Service {
         usage = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
         startForeground(1, new Notification.Builder(this)
                 .setSmallIcon(android.R.drawable.ic_menu_recent_history)
-                .setContentTitle("dumbtv")
+                .setContentTitle("BetterTV")
                 .setContentText("home keeper")
                 .build());
         // Keep the binder queries off the UI thread: this process draws the home screen.

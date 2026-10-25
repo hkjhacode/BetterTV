@@ -72,7 +72,7 @@ final class Config {
             new String[] {"Shown", "Hidden"});
     static final Choice SWITCH = new Choice("switch", "Open inputs with", "auto",
             new String[] {"auto", "tv", "home"},
-            new String[] {"Automatic", "The TV's app", "dumbtv home"});
+            new String[] {"Automatic", "The TV's app", "BetterTV"});
     static final Choice BACKGROUND = new Choice("background", "Background", "black",
             new String[] {"black", "graphite", "midnight", "image", "adaptive", "adaptive-tint"},
             new String[] {"Black", "Graphite", "Midnight", "Image file", "Adaptive solid", "Adaptive wallpaper tint"});
@@ -88,7 +88,23 @@ final class Config {
             new String[] {"carousel", "flat"},
             new String[] {"Carousel (experiment)", "Flat"});
 
-    static final Choice[] CHOICES = {ROW, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
+    static final Choice CENTER = new Choice("center", "Centre the selected app", "off",
+            new String[] {"off", "on"},
+            new String[] {"Off", "On"});
+
+    static final Choice COLOURS = new Choice("colours", "Colours", "festive",
+            new String[] {"calm", "festive", "always"},
+            new String[] {"Calm", "Colourful on festivals", "Always colourful"});
+
+    static final Choice LANGUAGE = new Choice("language", "Language", "angika",
+            new String[] {"angika", "maithili", "hindi", "english"},
+            new String[] {"अंगिका (Angika)", "मैथिली (Maithili)", "हिन्दी (Hindi)", "English"});
+
+    static final Choice HOME = new Choice("home.button", "Home button opens", "bettertv",
+            new String[] {"bettertv", "amazon"},
+            new String[] {"BetterTV", "Amazon's home screen"});
+
+    static final Choice[] CHOICES = {HOME, LANGUAGE, COLOURS, ROW, CENTER, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
 
     /** Folder of wallpapers, next to home.conf, that Background › Image file rotates through. */
     static final String WALLPAPERS = "wallpapers";
@@ -151,7 +167,7 @@ final class Config {
     private void save() {
         File tmp = new File(dir, FILE + ".tmp");
         try (Writer w = new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8)) {
-            w.write("# dumbtv home. Edit on the TV (Options) or here; unknown keys are kept.\n");
+            w.write("# BetterTV home. Edit on the TV (Options) or here; unknown keys are kept.\n");
             for (Map.Entry<String, String> e : values.entrySet()) {
                 w.write(e.getKey() + "=" + e.getValue() + "\n");
             }

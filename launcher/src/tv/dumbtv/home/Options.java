@@ -16,6 +16,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,19 +61,6 @@ public final class Options extends Activity {
             Guard.amazon(this);
             finish();
         }));
-        list.addView(action("Give the Home button back to Amazon", () -> new AlertDialog.Builder(this, Ui.DIALOG)
-                .setTitle("Give the Home button back to Amazon?")
-                .setMessage(Guard.holdsHome()
-                        ? "Home will open Amazon's home screen again, also after a restart. This home screen stays "
-                                + "installed under Apps. To make Home come here again: Settings › Accessibility › "
-                                + "BetterTV home button, or run launcher/install.sh from the computer."
-                        : "Home already opens Amazon's home screen.")
-                .setPositiveButton("Give it back", (d, w) -> {
-                    Guard.release(this);
-                    finish();
-                })
-                .setNegativeButton("Cancel", null)
-                .show()));
 
         TextView about = Ui.text(this, 13, Ui.FAINT, Ui.MEDIUM);
         about.setLineSpacing(0, 1.4f);
@@ -145,6 +133,9 @@ public final class Options extends Activity {
         int i = Arrays.asList(c.values).indexOf(cfg.get(c));
         int n = c.values.length;
         cfg.set(c.key, c.values[((i + by) % n + n) % n]);
+        if (c == Config.HOME && !Guard.sync(this)) {
+            Toast.makeText(this, "Run launcher/install.sh once from the computer to allow this", Toast.LENGTH_LONG).show();
+        }
         refresh();
         return true;
     }

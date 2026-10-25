@@ -28,7 +28,7 @@ what makes Android bind it.
 ### `verify.sh` says the home hook is enabled but not bound
 
 Enabled is a setting; bound means the service is actually running. `verify.sh`
-reads `dumpsys accessibility` and only passes when "dumbtv home button" is in the
+reads `dumpsys accessibility` and only passes when "BetterTV home button" is in the
 current user's bound services. Run `./scripts/launcher.sh -y`.
 
 On a TCL G08 the service stayed unbound because TCL's `TclAppBoot` refused it

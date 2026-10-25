@@ -162,6 +162,8 @@ fi
 
 sh_ cmd package set-home-activity $PKG/.Home >/dev/null 2>&1 || true
 set_futurity on
+# lets Options › "Home button opens" switch Home from the TV, and repair it after a force-stop
+sh_ pm grant $PKG android.permission.WRITE_SECURE_SETTINGS || true
 set_guard $GUARD
 sleep 2
 # The setting alone proves nothing: Fire OS decides whether the service is bound. On
@@ -171,7 +173,7 @@ sleep 2
 source ../scripts/accessibility.sh
 user=$(sh_ am get-current-user | tr -d '\r')
 bound=0
-for _ in 1 2 3 4 5; do
+for _ in $(seq 1 20); do  # a freshly installed service can take ~16 s to bind
   if sh_ dumpsys accessibility | guard_bound "${user:-0}"; then bound=1; break; fi
   sleep 1
 done
