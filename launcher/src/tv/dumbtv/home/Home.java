@@ -88,16 +88,14 @@ public final class Home extends Activity {
     private static final java.util.Map<String, String> WALL_LINES = new java.util.HashMap<>();
 
     static {
-        // Lines from shows each app is known for; a different one each time you come home.
-        TAGLINES.put("com.netflix.ninja", "Say my name.|Friends don't lie.|Bella ciao.|Red light, green light."
-                + "|Kabhi kabhi lagta hai apun hi bhagwan hai.|Legen… wait for it… dary.");
+        // Family-friendly lines, a different one each time you come home; nothing from adult shows.
+        TAGLINES.put("com.netflix.ninja", "Are you still watching?|Just one more episode.|Tudum.");
         TAGLINES.put("com.amazon.firetv.youtube", "Broadcast yourself.|Just one more video.|Like, share, subscribe.");
-        TAGLINES.put("in.startv.hotstar", "Winter is coming.|Dracarys.|Avengers, assemble.|Endure and survive."
+        TAGLINES.put("in.startv.hotstar", "Hakuna matata.|To infinity and beyond!|Avengers, assemble."
                 + "|I am Iron Man.");
         TAGLINES.put("org.smarttube.stable", "No ads. Just videos.|Skip nothing. There's nothing to skip.");
         TAGLINES.put("com.indiatv.livetv.androidtv", "Aaj ki taaza khabar.|Khabar har pal.|Breaking news, live.");
-        TAGLINES.put("com.amazon.firebat", "Dekh raha hai Binod.|Ye bhi theek hai.|One ring to rule them all."
-                + "|Diabolical.|Main hoon na… Srikant Tiwari.");
+        TAGLINES.put("com.amazon.firebat", "Dekh raha hai Binod.|Main hoon na.|Lights, camera, popcorn.");
         TAGLINES.put("com.amazon.venezia", "Something new to try.|There's an app for that.");
         WALL_LINES.put("the-batman", "I am vengeance.");
         WALL_LINES.put("the-batman-batmobile", "Why do we fall? So we can learn to pick ourselves up.");
@@ -833,7 +831,8 @@ public final class Home extends Activity {
             });
         }
         light(it.glow, t);
-        if (Catalog.APPS.equals(t.kind) && "carousel".equals(cfg.get(Config.ROW))) carousel(t);
+        // after layout, so the first focus at start-up is centred too
+        if (Catalog.APPS.equals(t.kind) && "carousel".equals(cfg.get(Config.ROW))) t.post(() -> carousel(t));
     }
 
     /**
@@ -842,6 +841,14 @@ public final class Home extends Activity {
      */
     private void carousel(Tile focused) {
         int at = dock.indexOfChild(focused);
+        // slide the whole row so the selected app sits in the middle of the screen
+        int[] d0 = new int[2];
+        dock.getLocationOnScreen(d0);
+        float left = d0[0] - dock.getTranslationX();
+        float shift = getResources().getDisplayMetrics().widthPixels / 2f
+                - (left + focused.getLeft() + focused.getWidth() / 2f);
+        dock.animate().translationX(shift).setDuration(320)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
         for (int i = 0; i < dock.getChildCount(); i++) {
             View v = dock.getChildAt(i);
             if (v == focused) continue;
@@ -876,6 +883,10 @@ public final class Home extends Activity {
                 over.getLocationOnScreen(a);
                 ((View) glow.getParent()).getLocationOnScreen(b);
                 float x = a[0] - b[0] + over.getWidth() / 2f - glow.getWidth() / 2f;
+                if (over.getParent() == dock && "carousel".equals(cfg.get(Config.ROW))) {
+                    // the row is sliding the selected app to the centre
+                    x = getResources().getDisplayMetrics().widthPixels / 2f - b[0] - glow.getWidth() / 2f;
+                }
                 // where the tile will sit once the page has scrolled, not where it is mid-scroll
                 float y = a[1] + page.getScrollY() - targetScroll - b[1] + over.getHeight() / 2f - glow.getHeight() / 2f;
                 if (glow.getVisibility() != View.VISIBLE) {
