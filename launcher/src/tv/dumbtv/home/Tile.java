@@ -15,14 +15,16 @@ import android.media.tv.TvInputManager;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 
 /**
  * A card drawn in one pass: banner, or icon plus name, or an input name. Focus only grows it;
  * the ring is kept for move mode. A mono tile stays black and white until focused.
  */
 final class Tile extends View {
-    private static final float FOCUS_SCALE = 1.12f;
+    private static final float FOCUS_SCALE = 1.18f;
     private static final ColorMatrixColorFilter GRAY;
+    private static final DecelerateInterpolator EASE = new DecelerateInterpolator(2f);
 
     static {
         ColorMatrix m = new ColorMatrix();
@@ -106,7 +108,9 @@ final class Tile extends View {
     protected void onFocusChanged(boolean focused, int direction, Rect previous) {
         super.onFocusChanged(focused, direction, previous);
         float s = focused ? FOCUS_SCALE : 1f;
-        animate().scaleX(s).scaleY(s).setDuration(110).start();
+        // The focused tile comes forward: it grows and draws over its neighbours.
+        setZ(focused ? 1f : 0f);
+        animate().scaleX(s).scaleY(s).setDuration(240).setInterpolator(EASE).start();
         invalidate();
     }
 
@@ -156,7 +160,7 @@ final class Tile extends View {
      * than a thin one so both look equally big. Never stretched.
      */
     private void drawLogo(Canvas canvas, Bitmap logo) {
-        float boxW = cardW * 0.82f, boxH = cardH * 0.62f;
+        float boxW = cardW * 0.82f, boxH = cardH * 0.74f;
         float fit = Math.min(boxW / logo.getWidth(), boxH / logo.getHeight());
         float w = logo.getWidth() * fit, h = logo.getHeight() * fit;
         float ink = Math.max(0.05f, item.logoInk) * w * h;
@@ -166,6 +170,8 @@ final class Tile extends View {
         w *= s;
         h *= s;
         logoBox.set((cardW - w) / 2, (cardH - h) / 2, (cardW + w) / 2, (cardH + h) / 2);
+        // Unfocused logos rest a little dimmer, so the focused one reads at a glance.
+        logoPaint.setAlpha(isFocused() ? 255 : 165);
         canvas.drawBitmap(logo, null, logoBox, logoPaint);
     }
 

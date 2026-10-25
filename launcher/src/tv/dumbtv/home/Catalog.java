@@ -27,6 +27,19 @@ final class Catalog {
 
     private Catalog() {}
 
+    /** The bundled white glyph for the usual apps, or 0. */
+    static int glyph(String pkg) {
+        switch (pkg) {
+            case "com.netflix.ninja": return R.drawable.logo_netflix;
+            case "com.amazon.firetv.youtube": return R.drawable.logo_youtube;
+            case "org.smarttube.stable": return R.drawable.logo_smarttube;
+            case "in.startv.hotstar": return R.drawable.logo_star;
+            case "com.amazon.venezia": return R.drawable.logo_apps;
+            case "com.amazon.firebat": return R.drawable.logo_prime;
+            default: return 0;
+        }
+    }
+
     /** Every launchable app, TV apps first; drawables are left for {@link #art}. */
     static List<Item> apps(Context c) {
         PackageManager pm = c.getPackageManager();

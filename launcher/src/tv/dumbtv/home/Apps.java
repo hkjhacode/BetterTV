@@ -36,10 +36,12 @@ public final class Apps extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.setFocusable(false);
         scroll.setVerticalScrollBarEnabled(false);
+        scroll.setClipChildren(false);
         scroll.setBackgroundColor(cfg.background());
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setClipChildren(false);
+        page.setClipToPadding(false);
         page.setPadding(dp(56), dp(40), dp(56), dp(40));
         scroll.addView(page);
 

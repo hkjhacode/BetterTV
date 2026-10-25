@@ -12,16 +12,14 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.text.SpannableString;
-import android.text.Spanned;
 import android.text.format.DateFormat;
-import android.text.style.RelativeSizeSpan;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -32,12 +30,17 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -60,8 +63,13 @@ public final class Home extends Activity {
     private int applied = -1, appsGeneration;
     private boolean resumed, landed;
     private ImageView wall;
-    private View shade, glow, wifi;
-    private TextView clock, weather, tagline;
+    private View shade, dimmer, glow, wifi;
+    private ScrollView page;
+    private static final Locale HINDI = new Locale("hi", "IN");
+    private static final SimpleDateFormat ISO = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
+    private static final SimpleDateFormat DAY = new SimpleDateFormat("EEEE, d MMMM", HINDI);
+    private static final SimpleDateFormat SHORT = new SimpleDateFormat("d MMMM", HINDI);
+    private TextView clock, weather, tagline, greet, date;
     private HorizontalScrollView dockScroll;
     private LinearLayout dock, news;
     private List<Item> apps = new ArrayList<>();
@@ -121,7 +129,7 @@ public final class Home extends Activity {
         }
         for (Item it : Catalog.visible(cfg, Catalog.APPS, apps)) {
             Catalog.art(getPackageManager(), it);
-            Logo.load(cfg, it);
+            Logo.load(this, cfg, it, Catalog.glyph(it.id));
             it.artRequested = true;
         }
     }
@@ -234,52 +242,78 @@ public final class Home extends Activity {
         root.addView(wall, new FrameLayout.LayoutParams(MATCH, MATCH));
         shade = new View(this);
         root.addView(shade, new FrameLayout.LayoutParams(MATCH, MATCH));
+        dimmer = new View(this);
+        dimmer.setBackgroundColor(0x99000000);
+        dimmer.setAlpha(0f);
+        root.addView(dimmer, new FrameLayout.LayoutParams(MATCH, MATCH));
         // The rows sit on dark: clear down to about half the height, then fading to black.
         View bottom = new View(this);
         bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x00000000, 0x00000000, 0x99000000, 0xF2000000}));
+                new int[] {0x00000000, 0x00000000, 0x0D000000, 0x8C000000, 0xD9000000}));
         root.addView(bottom, new FrameLayout.LayoutParams(MATCH, MATCH));
         // An oval of light that glides to sit behind the focused tile.
         glow = new View(this);
         GradientDrawable light = new GradientDrawable();
         light.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-        light.setGradientRadius(dp(260));
+        light.setGradientRadius(dp(270));
         light.setColors(new int[] {Color.TRANSPARENT, Color.TRANSPARENT});
         glow.setBackground(light);
-        glow.setScaleY(0.6f);
+        glow.setScaleX(1.7f);
         glow.setVisibility(View.INVISIBLE);
-        root.addView(glow, new FrameLayout.LayoutParams(dp(520), dp(520)));
+        root.addView(glow, new FrameLayout.LayoutParams(dp(540), dp(540)));
+
+        // Two stops: the home screen itself, and below it the live news. The wallpaper darkens
+        // as the page moves down.
+        page = new ScrollView(this) {
+            @Override
+            protected int computeScrollDeltaToGetChildRectOnScreen(Rect r) {
+                return 0;
+            }
+        };
+        page.setFocusable(false);
+        page.setVerticalScrollBarEnabled(false);
+        page.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        page.setOnScrollChangeListener((v, x, y, ox, oy) ->
+                dimmer.setAlpha(Math.min(1f, y / (float) Math.max(1, v.getHeight() / 2))));
+        root.addView(page, new FrameLayout.LayoutParams(MATCH, MATCH));
+        LinearLayout sections = new LinearLayout(this);
+        sections.setOrientation(LinearLayout.VERTICAL);
+        sections.setClipChildren(false);
+        page.addView(sections, new FrameLayout.LayoutParams(MATCH, WRAP));
 
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setClipChildren(false);
         column.setClipToPadding(false);
-        column.setPadding(dp(56), dp(30), dp(56), dp(22));
-        root.addView(column, new FrameLayout.LayoutParams(MATCH, MATCH));
+        column.setPadding(dp(56), dp(30), dp(56), dp(10));
+        int screen = getResources().getDisplayMetrics().heightPixels;
+        sections.addView(column, new LinearLayout.LayoutParams(MATCH, screen - dp(34)));
 
         LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setGravity(Gravity.TOP);
         head.setClipChildren(false);
-        clock = Ui.text(this, 40, Ui.TEXT, Ui.outfitLight);
-        head.addView(clock);
-        weather = Ui.text(this, 17, 0xD9FFFFFF, Ui.outfitLight);
-        weather.setPadding(dp(16), dp(6), dp(10), dp(6));
-        weather.setFocusable(true);
-        weather.setClickable(true);
-        weather.setOnClickListener(v -> startActivity(new Intent(this, Weather.class)));
-        grow(weather);
+        LinearLayout when = new LinearLayout(this);
+        when.setOrientation(LinearLayout.VERTICAL);
+        greet = Ui.text(this, 17, Ui.MUTED, Ui.outfitLight);
+        clock = Ui.text(this, 60, Ui.TEXT, Ui.outfitLight);
+        clock.setPadding(0, dp(4), 0, dp(6));
+        date = Ui.text(this, 16, Ui.MUTED, Ui.outfitLight);
+        when.addView(greet);
+        when.addView(clock);
+        when.addView(date);
+        head.addView(when, new LinearLayout.LayoutParams(0, WRAP, 1f));
+        weather = pill(0, "", v -> startActivity(new Intent(this, Weather.class)));
         head.addView(weather);
-        head.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-        wifi = icon(R.drawable.ic_wifi, "Wi-Fi", v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS), null));
+        wifi = pill(R.drawable.ic_wifi, "Wi-Fi", v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS), null));
         wifi.setId(View.generateViewId());
         head.addView(wifi);
-        head.addView(icon(R.drawable.ic_tune, "Options", v -> startActivity(new Intent(this, Options.class))));
-        head.addView(icon(R.drawable.ic_settings, "Settings", v -> openSettings()));
+        head.addView(circle(R.drawable.ic_tune, "Options", v -> startActivity(new Intent(this, Options.class))));
+        head.addView(circle(R.drawable.ic_settings, "Settings", v -> openSettings()));
         column.addView(head, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         column.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
 
-        tagline = Ui.text(this, 26, 0xF2FFFFFF, Ui.outfitLight);
+        tagline = Ui.text(this, 34, 0xF2FFFFFF, Ui.outfitLight);
         tagline.setSingleLine();
         column.addView(tagline, new LinearLayout.LayoutParams(MATCH, WRAP));
 
@@ -305,15 +339,23 @@ public final class Home extends Activity {
         dockScroll.addView(dock, new FrameLayout.LayoutParams(WRAP, WRAP));
         column.addView(dockScroll, new LinearLayout.LayoutParams(MATCH, WRAP));
 
+        LinearLayout below = new LinearLayout(this);
+        below.setOrientation(LinearLayout.VERTICAL);
+        below.setClipChildren(false);
+        below.setClipToPadding(false);
+        below.setPadding(dp(56), 0, dp(56), dp(40));
+        sections.addView(below, new LinearLayout.LayoutParams(MATCH, WRAP));
+
         TextView live = Ui.text(this, 11, Ui.FAINT, Ui.outfitMedium);
         live.setText("LIVE NEWS");
         live.setLetterSpacing(0.16f);
         live.setPadding(dp(4), dp(10), 0, dp(8));
-        column.addView(live);
+        below.addView(live);
         news = new LinearLayout(this);
         news.setClipChildren(false);
-        news.setPadding(dp(4), 0, 0, 0);
-        column.addView(news, new LinearLayout.LayoutParams(MATCH, WRAP));
+        news.setPadding(dp(14), dp(10), dp(14), dp(10));
+        news.setClipToPadding(false);
+        below.addView(news, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         TextView more = Ui.text(this, 13, Ui.TEXT, Ui.outfitMedium);
         more.setText("More apps");
@@ -324,40 +366,79 @@ public final class Home extends Activity {
         more.setOnClickListener(v -> startActivity(new Intent(this, Apps.class)));
         more.setOnFocusChangeListener((v, has) -> {
             v.animate().scaleX(has ? 1.1f : 1f).scaleY(has ? 1.1f : 1f).setDuration(200).start();
-            v.setBackground(Ui.round(has ? 0x40FFFFFF : 0x1FFFFFFF, dp(16)));
-            if (has) light(0, null);
+            v.setBackground(Ui.round(has ? 0xE6FFFFFF : 0x1FFFFFFF, dp(16)));
+            more.setTextColor(has ? 0xFF000000 : Ui.TEXT);
+            if (has) {
+                light(0, null);
+                scrollTo(true);
+            }
         });
         LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(WRAP, WRAP);
         mlp.gravity = Gravity.CENTER_HORIZONTAL;
         mlp.topMargin = dp(14);
-        column.addView(more, mlp);
+        below.addView(more, mlp);
         return root;
     }
 
-    /** A bare icon: no box or label, it only grows and brightens when focused. */
-    private ImageView icon(int drawable, String name, View.OnClickListener click) {
-        ImageView v = new ImageView(this);
-        v.setImageResource(drawable);
-        v.setContentDescription(name);
-        v.setPadding(dp(11), dp(11), dp(11), dp(11));
-        v.setFocusable(true);
-        v.setClickable(true);
+    /** A top-bar pill: icon and label on a faint glass chip; white with dark ink when focused. */
+    private TextView pill(int icon, String label, View.OnClickListener click) {
+        TextView v = Ui.text(this, 15, Ui.TEXT, Ui.outfitMedium);
+        v.setText(label);
+        v.setGravity(Gravity.CENTER_VERTICAL);
+        v.setPadding(dp(icon == 0 ? 16 : 13), dp(9), dp(16), dp(9));
+        if (icon != 0) {
+            Drawable d = getDrawable(icon).mutate();
+            d.setBounds(0, 0, dp(17), dp(17));
+            v.setCompoundDrawablesRelative(d, null, null, null);
+            v.setCompoundDrawablePadding(dp(8));
+        }
         v.setOnClickListener(click);
-        grow(v);
-        v.setLayoutParams(new LinearLayout.LayoutParams(dp(40), dp(40)));
+        chip(v);
         return v;
     }
 
-    private void grow(View v) {
-        v.setAlpha(0.75f);
+    private ImageView circle(int icon, String name, View.OnClickListener click) {
+        ImageView v = new ImageView(this);
+        v.setImageResource(icon);
+        v.setContentDescription(name);
+        v.setPadding(dp(10), dp(10), dp(10), dp(10));
+        v.setOnClickListener(click);
+        chip(v);
+        v.getLayoutParams().width = v.getLayoutParams().height = dp(37);
+        return v;
+    }
+
+    private void chip(View v) {
+        v.setFocusable(true);
+        v.setClickable(true);
+        v.setBackground(idleChip());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(WRAP, WRAP);
+        lp.leftMargin = dp(10);
+        v.setLayoutParams(lp);
         v.setOnFocusChangeListener((view, has) -> {
-            view.animate().scaleX(has ? 1.32f : 1f).scaleY(has ? 1.32f : 1f).alpha(has ? 1f : 0.75f)
-                    .setDuration(220).start();
+            view.animate().scaleX(has ? 1.08f : 1f).scaleY(has ? 1.08f : 1f).setDuration(220).start();
+            view.setBackground(has ? Ui.round(0xF2FFFFFF, dp(19)) : idleChip());
+            int ink = has ? 0xFF000000 : Ui.TEXT;
+            if (view instanceof TextView) {
+                ((TextView) view).setTextColor(ink);
+                for (Drawable d : ((TextView) view).getCompoundDrawablesRelative()) {
+                    if (d != null) d.setTint(ink);
+                }
+            } else {
+                ((ImageView) view).setColorFilter(ink);
+            }
             if (has) {
                 tagline.setText("");
                 light(0, null);
+                scrollTo(false);
             }
         });
+    }
+
+    private GradientDrawable idleChip() {
+        GradientDrawable g = Ui.round(0x1AFFFFFF, dp(19));
+        g.setStroke(Math.max(1, dp(1)), 0x24FFFFFF);
+        return g;
     }
 
     private void apply() {
@@ -447,7 +528,7 @@ public final class Home extends Activity {
         it.artRequested = true;
         io.execute(() -> {
             Catalog.art(getPackageManager(), it);
-            Logo.load(cfg, it);
+            Logo.load(this, cfg, it, Catalog.glyph(it.id));
             ui.post(() -> {
                 for (int i = 0; i < dock.getChildCount(); i++) dock.getChildAt(i).invalidate();
                 View f = getCurrentFocus();
@@ -457,8 +538,13 @@ public final class Home extends Activity {
     }
 
     /** The tagline and the glow follow the focused tile. */
+    private void scrollTo(boolean below) {
+        page.smoothScrollTo(0, below ? page.getChildAt(0).getHeight() - page.getHeight() : 0);
+    }
+
     private void focusTile(Tile t) {
         Item it = t.item;
+        scrollTo(Catalog.NEWS.equals(t.kind));
         CharSequence line = Catalog.NEWS.equals(t.kind) ? it.label : tagline(it);
         if (!line.toString().equals(tagline.getText().toString())) {
             tagline.setAlpha(0f);
@@ -503,19 +589,23 @@ public final class Home extends Activity {
                 }
             });
         }
-        int target = color == 0 ? Color.TRANSPARENT : (color & 0x00FFFFFF) | 0x73000000;
+        glow.animate().alpha(color == 0 ? 0.45f : 1f).setDuration(420).start();
+        if (color == 0) return;
+        int target = (color & 0x00FFFFFF) | 0x66000000;
         if (glowAnimation != null) glowAnimation.cancel();
         glowAnimation = ValueAnimator.ofArgb(glowColor, target);
         glowAnimation.setDuration(420);
         glowAnimation.addUpdateListener(v -> {
             glowColor = (Integer) v.getAnimatedValue();
-            g.setColors(new int[] {glowColor, glowColor & 0x00FFFFFF});
+            g.setColors(new int[] {glowColor, (glowColor & 0x00FFFFFF) | (glowColor >>> 24) / 4 << 24,
+                    glowColor & 0x00FFFFFF});
         });
         glowAnimation.start();
     }
 
     private void focusFirst() {
         dockScroll.scrollTo(0, 0);
+        page.scrollTo(0, 0);
         View first = dock.getChildAt(0);
         landed = first != null;
         if (first == null) first = news.getChildAt(0);
@@ -526,16 +616,32 @@ public final class Home extends Activity {
         String mode = cfg.get(Config.CLOCK);
         boolean h24 = "24h".equals(mode) || "auto".equals(mode) && DateFormat.is24HourFormat(this);
         Date now = new Date();
-        if (h24) {
-            clock.setText(DateFormat.format("HH:mm", now));
-        } else {
-            SpannableString half = new SpannableString(" " + DateFormat.format("a", now));
-            half.setSpan(new RelativeSizeSpan(0.36f), 0, half.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            clock.setText(DateFormat.format("h:mm", now));
-            clock.append(half);
+        clock.setText(DateFormat.format(h24 ? "HH:mm" : "h:mm", now));
+        Calendar c = Calendar.getInstance();
+        String today = ISO.format(now);
+        String festival = Festivals.on(cfg, today);
+        greet.setText(festival != null ? festival + " के ढेर सिनी शुभकामना" : greeting(c.get(Calendar.HOUR_OF_DAY)));
+        c.add(Calendar.DAY_OF_YEAR, 7);
+        String[] next = Festivals.next(today, ISO.format(c.getTime()));
+        String line = DAY.format(now);
+        if (next != null) {
+            try {
+                line += "   ·   " + SHORT.format(ISO.parse(next[0])) + ", " + next[1];
+            } catch (ParseException ignored) {
+                // the built-in list is well formed
+            }
         }
+        date.setText(line);
         // hourly and time-of-day rotations change while the screen stays open; a no-op otherwise
         background();
+    }
+
+    /** In Angika; home.conf greet.morning, greet.noon, greet.evening, greet.night replace a line. */
+    private String greeting(int hour) {
+        if (hour >= 4 && hour < 12) return cfg.get("greet.morning", "भोर के प्रणाम");
+        if (hour >= 12 && hour < 16) return cfg.get("greet.noon", "दुपहरिया के प्रणाम");
+        if (hour >= 16 && hour < 20) return cfg.get("greet.evening", "साँझ के प्रणाम");
+        return cfg.get("greet.night", "रात के प्रणाम");
     }
 
     private void background() {
