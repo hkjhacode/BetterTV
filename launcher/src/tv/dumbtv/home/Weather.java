@@ -68,7 +68,7 @@ public final class Weather extends Activity {
 
     /** "☾ 22°C · AQI 261 · ☂ 4 PM" for the home screen, fetched at most every 30 minutes. */
     static void current(Config cfg, ExecutorService io, Handler ui, Consumer<String> show) {
-        String where = lat(cfg) + "," + lon(cfg);
+        String where = lat(cfg) + "," + lon(cfg) + "," + cfg.get(Config.WEATHER);
         if (now != null && where.equals(nowFor) && System.currentTimeMillis() - nowAt < FRESH_MS) {
             show.accept(now);
             return;
@@ -76,21 +76,15 @@ public final class Weather extends Activity {
         io.execute(() -> {
             String text;
             try {
-                JSONObject w = Msn.overview(cfg, lat(cfg), lon(cfg));
+                JSONObject w = data(cfg);
                 JSONObject c = w.getJSONObject("current");
                 text = glyph(c.optString("cap"), !"n".equals(c.optString("daytime"))) + " "
                         + Math.round(c.getDouble("temp")) + "°C";
                 if (c.has("aqi")) text += "  ·  AQI " + Math.round(c.getDouble("aqi"));
                 String rain = rain(w, c.optString("created"));
                 if (rain != null) text += "  ·  " + rain;
-            } catch (IOException | JSONException | RuntimeException bing) {
-                try {
-                    JSONObject c = new JSONObject(Live.get("https://api.open-meteo.com/v1/forecast?latitude=" + lat(cfg)
-                            + "&longitude=" + lon(cfg) + "&current=temperature_2m")).getJSONObject("current");
-                    text = Math.round(c.getDouble("temperature_2m")) + "°C";
-                } catch (IOException | JSONException ignored) {
-                    return; // no network: keep whatever is showing and try again on the next visit
-                }
+            } catch (IOException | JSONException | RuntimeException e) {
+                return; // no network at all: keep whatever is showing and try again on the next visit
             }
             String shown = text;
             now = text;
@@ -98,6 +92,107 @@ public final class Weather extends Activity {
             nowFor = where;
             ui.post(() -> show.accept(shown));
         });
+    }
+
+    private static final String CACHE = "weather.json";
+
+    /**
+     * MSN (Bing) first; if it fails, its last good answer for this place from the last 6 hours,
+     * marked with its age; else Open-Meteo in the same shape. Each Bing failure leaves a line in
+     * crash.log. Slow: off the UI thread.
+     */
+    static JSONObject data(Config cfg) throws IOException, JSONException {
+        java.io.File cache = new java.io.File(cfg.dir, CACHE);
+        String where = lat(cfg) + "," + lon(cfg);
+        if ("openmeteo".equals(cfg.get(Config.WEATHER))) return openMeteo(cfg).put("source", "Open-Meteo");
+        try {
+            JSONObject w = Msn.overview(cfg, lat(cfg), lon(cfg));
+            w.put("where", where).put("at", System.currentTimeMillis());
+            try (java.io.Writer out = new java.io.OutputStreamWriter(new java.io.FileOutputStream(cache),
+                    java.nio.charset.StandardCharsets.UTF_8)) {
+                out.write(w.toString());
+            }
+            return w;
+        } catch (IOException | JSONException | RuntimeException bing) {
+            Crash.note(cfg, "Bing weather failed: " + bing);
+        }
+        try {
+            JSONObject w = new JSONObject(new String(java.nio.file.Files.readAllBytes(cache.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            long age = System.currentTimeMillis() - w.optLong("at");
+            if (where.equals(w.optString("where")) && age < 6 * 3_600_000L) {
+                return w.put("source", "MSN Weather · updated " + Math.max(1, age / 60_000) + " min ago");
+            }
+        } catch (IOException | JSONException | RuntimeException none) {
+            // no usable copy: Open-Meteo below
+        }
+        return openMeteo(cfg);
+    }
+
+    /** Open-Meteo's forecast and air quality, put in MSN's shape so the rest of the code needs no second path. */
+    static JSONObject openMeteo(Config cfg) throws IOException, JSONException {
+        JSONObject f = new JSONObject(Live.get("https://api.open-meteo.com/v1/forecast?latitude=" + lat(cfg)
+                + "&longitude=" + lon(cfg) + "&timezone=auto&forecast_days=10"
+                + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,"
+                + "wind_gusts_10m,wind_direction_10m,surface_pressure,cloud_cover,dew_point_2m,visibility,uv_index"
+                + "&hourly=precipitation_probability"
+                + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,"
+                + "apparent_temperature_max,apparent_temperature_min,uv_index_max,sunrise,sunset"));
+        JSONObject o = f.getJSONObject("current");
+        JSONObject c = new JSONObject()
+                .put("temp", o.getDouble("temperature_2m")).put("feels", o.getDouble("apparent_temperature"))
+                .put("rh", o.getDouble("relative_humidity_2m")).put("cap", words(o.getInt("weather_code")))
+                .put("daytime", o.optInt("is_day", 1) == 1 ? "d" : "n").put("windSpd", o.getDouble("wind_speed_10m"))
+                .put("windGust", o.optDouble("wind_gusts_10m", 0)).put("windDir", o.optDouble("wind_direction_10m", 0))
+                .put("baro", o.optDouble("surface_pressure", 0)).put("cloudCover", o.optDouble("cloud_cover", 0))
+                .put("dewPt", o.optDouble("dew_point_2m", 0)).put("vis", o.optDouble("visibility", 0) / 1000)
+                .put("uv", o.optDouble("uv_index", 0)).put("created", o.getString("time"));
+        try {
+            JSONObject a = new JSONObject(Live.get("https://air-quality-api.open-meteo.com/v1/air-quality?latitude="
+                    + lat(cfg) + "&longitude=" + lon(cfg) + "&current=us_aqi,pm2_5")).getJSONObject("current");
+            if (!a.isNull("us_aqi")) {
+                c.put("aqi", a.getDouble("us_aqi")).put("aqiSeverity", "US AQI (Open-Meteo)")
+                        .put("primaryPollutant", "PM2.5 " + Math.round(a.optDouble("pm2_5")) + " µg/m³");
+            }
+        } catch (IOException | JSONException ignored) {
+            // the rest still shows
+        }
+        JSONObject d = f.getJSONObject("daily"), h = f.getJSONObject("hourly");
+        JSONArray days = new JSONArray(), ht = h.getJSONArray("time"), hp = h.getJSONArray("precipitation_probability");
+        for (int i = 0; i < d.getJSONArray("time").length(); i++) {
+            String day = d.getJSONArray("time").getString(i);
+            JSONArray hours = new JSONArray();
+            for (int k = 0; k < ht.length(); k++) {
+                if (ht.getString(k).startsWith(day)) {
+                    hours.put(new JSONObject().put("valid", ht.getString(k)).put("precip", hp.optDouble(k, -1)));
+                }
+            }
+            days.put(new JSONObject()
+                    .put("daily", new JSONObject().put("valid", day)
+                            .put("tempHi", d.getJSONArray("temperature_2m_max").getDouble(i))
+                            .put("tempLo", d.getJSONArray("temperature_2m_min").getDouble(i))
+                            .put("precip", d.getJSONArray("precipitation_probability_max").optDouble(i, 0))
+                            .put("feelsHi", d.getJSONArray("apparent_temperature_max").optDouble(i, 0))
+                            .put("feelsLo", d.getJSONArray("apparent_temperature_min").optDouble(i, 0))
+                            .put("uv", d.getJSONArray("uv_index_max").optDouble(i, 0))
+                            .put("pvdrCap", words(d.getJSONArray("weather_code").getInt(i))))
+                    .put("hourly", hours)
+                    .put("almanac", new JSONObject().put("sunrise", d.getJSONArray("sunrise").getString(i) + ":00")
+                            .put("sunset", d.getJSONArray("sunset").getString(i) + ":00")));
+        }
+        return new JSONObject().put("current", c).put("forecast", new JSONObject().put("days", days))
+                .put("source", "Open-Meteo (Bing unavailable)");
+    }
+
+    /** WMO weather code in words, for Open-Meteo. */
+    private static String words(int code) {
+        if (code == 0) return "Clear";
+        if (code <= 2) return "Partly cloudy";
+        if (code == 3) return "Cloudy";
+        if (code <= 48) return "Fog";
+        if (code <= 67 || code >= 80 && code <= 82) return "Rain";
+        if (code <= 77 || code == 85 || code == 86) return "Snow";
+        return "Thunderstorm";
     }
 
     /** {@link Rain#check} over MSN's hourly rain chances; "now" is MSN's own timestamp for the place. */
@@ -134,6 +229,7 @@ public final class Weather extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         cfg = Config.get(this);
+        cfg.refresh();
         Ui.fonts(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -189,7 +285,7 @@ public final class Weather extends Activity {
         cards.removeAllViews();
         io.execute(() -> {
             try {
-                JSONObject w = Msn.overview(cfg, lat(cfg), lon(cfg));
+                JSONObject w = data(cfg);
                 ui.post(() -> {
                     try {
                         show(w);
@@ -198,7 +294,7 @@ public final class Weather extends Activity {
                     }
                 });
             } catch (IOException | JSONException e) {
-                ui.post(() -> current.setText("No connection to MSN Weather"));
+                ui.post(() -> current.setText("No internet"));
             }
         });
     }
@@ -210,7 +306,7 @@ public final class Weather extends Activity {
         current.setText(glyph(c.optString("cap"), !"n".equals(c.optString("daytime"))) + " " + Math.round(c.getDouble("temp")) + "°C");
         JSONObject part = d.optJSONObject("n".equals(c.optString("daytime")) ? "night" : "day");
         details.setText(c.optString("cap") + "  ·  feels like " + Math.round(c.getDouble("feels")) + "°"
-                + (part == null ? "" : "\n" + part.optString("summary")) + "\nMSN Weather · forecast by Foreca");
+                + (part == null ? "" : "\n" + part.optString("summary")) + "\n" + w.optString("source", "MSN Weather · forecast by Foreca"));
 
         SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT), eee = new SimpleDateFormat("EEE", Locale.ENGLISH);
         for (int i = 0; i < all.length(); i++) {
@@ -235,13 +331,13 @@ public final class Weather extends Activity {
         card("Wind", Math.round(c.getDouble("windSpd")) + " km/h", "Gusts " + Math.round(c.optDouble("windGust", 0))
                 + " km/h\nFrom " + compass(c.optDouble("windDir", 0)));
         card("Humidity", Math.round(c.getDouble("rh")) + "%", "Dew point " + Math.round(c.optDouble("dewPt", 0)) + "°");
-        card("UV", Math.round(c.optDouble("uv", 0)) + "", c.optString("uvDesc") + " · today's max " + Math.round(d.optDouble("uv", 0)));
+        card("UV", Math.round(c.optDouble("uv", 0)) + "", (c.optString("uvDesc").isEmpty() ? "" : c.optString("uvDesc") + " · ") + "today's max " + Math.round(d.optDouble("uv", 0)));
         card("Visibility", Math.round(c.optDouble("vis", 0)) + " km", "Cloud cover " + Math.round(c.optDouble("cloudCover", 0)) + "%");
         card("Pressure", Math.round(c.optDouble("baro", 0)) + " mb", "");
         card("Temperature", Math.round(d.getDouble("tempHi")) + "° / " + Math.round(d.getDouble("tempLo")) + "°",
                 "Feels " + Math.round(d.optDouble("feelsHi", 0)) + "° / " + Math.round(d.optDouble("feelsLo", 0)) + "°");
         card("Sun", time(sky.optString("sunrise")) + " ↑", time(sky.optString("sunset")) + " ↓");
-        card("Moon", sky.optString("moonPhase"), "Rises " + time(sky.optString("moonrise")) + " · sets " + time(sky.optString("moonset")));
+        if (sky.has("moonPhase")) card("Moon", sky.optString("moonPhase"), "Rises " + time(sky.optString("moonrise")) + " · sets " + time(sky.optString("moonset")));
     }
 
     /** "2026-10-24T06:27:33+05:30" is "06:27". */

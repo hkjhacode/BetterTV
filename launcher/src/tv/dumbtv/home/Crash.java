@@ -22,6 +22,17 @@ final class Crash {
 
     private Crash() {}
 
+    /** One line in crash.log for a problem that did not crash the app, such as Bing refusing. */
+    static synchronized void note(Config cfg, String what) {
+        File log = new File(cfg.dir, FILE);
+        if (log.length() > MAX && !log.delete()) return;
+        try (PrintWriter w = new PrintWriter(new FileWriter(log, true))) {
+            w.println("--- " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).format(new Date()) + "  " + what);
+        } catch (IOException ignored) {
+            // the note is a nicety
+        }
+    }
+
     static synchronized void install(Context c) {
         if (installed) return;
         installed = true;

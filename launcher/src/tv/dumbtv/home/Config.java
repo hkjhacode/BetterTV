@@ -108,7 +108,11 @@ final class Config {
             new String[] {"cinematic", "quick"},
             new String[] {"Cinematic (logo zoom, Bye / Welcome back)", "Quick"});
 
-    static final Choice[] CHOICES = {HOME, MOTION, LANGUAGE, COLOURS, ROW, CENTER, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
+    static final Choice WEATHER = new Choice("weather.from", "Weather from", "bing",
+            new String[] {"bing", "openmeteo"},
+            new String[] {"Bing (MSN), Open-Meteo if it fails", "Open-Meteo only (official, free)"});
+
+    static final Choice[] CHOICES = {HOME, MOTION, LANGUAGE, WEATHER, COLOURS, ROW, CENTER, ACCENT, TILES, LAYOUT, LABELS, CLOCK, INPUTS, SWITCH, BACKGROUND, DIM, ROTATE};
 
     /** Folder of wallpapers, next to home.conf, that Background › Image file rotates through. */
     static final String WALLPAPERS = "wallpapers";
