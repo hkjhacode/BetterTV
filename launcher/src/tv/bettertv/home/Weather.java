@@ -55,7 +55,7 @@ public final class Weather extends Activity {
         {"Vrindavan", "Uttar Pradesh", "27.5811", "77.6966"},
     };
 
-    private static String now;
+    private static CharSequence now;
     private static long nowAt;
     private static String nowFor;
 
@@ -67,31 +67,57 @@ public final class Weather extends Activity {
     private android.widget.GridLayout cards;
 
     /** "☾ 22°C · AQI 261 · ☂ 4 PM" for the home screen, fetched at most every 30 minutes. */
-    static void current(Config cfg, ExecutorService io, Handler ui, Consumer<String> show) {
+    static void current(Config cfg, ExecutorService io, Handler ui, Consumer<CharSequence> show) {
         String where = lat(cfg) + "," + lon(cfg) + "," + cfg.get(Config.WEATHER);
         if (now != null && where.equals(nowFor) && System.currentTimeMillis() - nowAt < FRESH_MS) {
             show.accept(now);
             return;
         }
         io.execute(() -> {
-            String text;
+            CharSequence text;
             try {
                 JSONObject w = data(cfg);
                 JSONObject c = w.getJSONObject("current");
-                text = glyph(c.optString("cap"), !"n".equals(c.optString("daytime"))) + " "
-                        + Math.round(c.getDouble("temp")) + "°C";
-                if (c.has("aqi")) text += "  ·  AQI " + Math.round(c.getDouble("aqi"));
-                String rain = rain(w, c.optString("created"));
-                if (rain != null) text += "  ·  " + rain;
+                text = pill(c, rain(w, c.optString("created")));
             } catch (IOException | JSONException | RuntimeException e) {
                 return; // no network at all: keep whatever is showing and try again on the next visit
             }
-            String shown = text;
+            CharSequence shown = text;
             now = text;
             nowAt = System.currentTimeMillis();
             nowFor = where;
             ui.post(() -> show.accept(shown));
         });
+    }
+
+    /**
+     * The top bar's short line: "☁ 19°C  ● 195  ☂ 9 PM". The dot takes the AQI's colour (India
+     * AQI bands); the rain time is today's only, and left out when it is already raining.
+     */
+    static CharSequence pill(JSONObject c, String rain) throws JSONException {
+        String glyph = glyph(c.optString("cap"), !"n".equals(c.optString("daytime")));
+        android.text.SpannableStringBuilder b = new android.text.SpannableStringBuilder(glyph + " " + Math.round(c.getDouble("temp")) + "°C");
+        if (c.has("aqi")) {
+            long aqi = Math.round(c.getDouble("aqi"));
+            b.append("   ");
+            int dot = b.length();
+            b.append("● ").append("AQI ").append(String.valueOf(aqi));
+            b.setSpan(new android.text.style.ForegroundColorSpan(aqiColour(aqi)), dot, dot + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        String today = rain == null ? null : rain.split(" · ")[0];
+        boolean raining = glyph.startsWith("☂") || glyph.startsWith("☈");
+        if (today != null && !today.contains("कल") && !raining) b.append("   ").append(today);
+        return b;
+    }
+
+    /** India AQI bands: good, satisfactory, moderate, poor, very poor, severe. */
+    static int aqiColour(long aqi) {
+        if (aqi <= 50) return 0xFF3FBF5F;
+        if (aqi <= 100) return 0xFF9ACD32;
+        if (aqi <= 200) return 0xFFF4C430;
+        if (aqi <= 300) return 0xFFFF8C1A;
+        if (aqi <= 400) return 0xFFE5484D;
+        return 0xFFB0306A;
     }
 
     private static final String CACHE = "weather.json";

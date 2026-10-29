@@ -288,6 +288,8 @@ public final class Home extends Activity {
         super.onNewIntent(intent);
         if (moving != null) stopMoving();
         if (wallCard != null) wallCard.dismiss();
+        // Home never reaches dispatchKeyEvent, so it restarts the screensaver timer here
+        wake();
         if (resumed) focusFirst();
     }
 
@@ -1037,7 +1039,7 @@ public final class Home extends Activity {
         String mode = cfg.get(Config.CLOCK);
         boolean h24 = "24h".equals(mode) || "auto".equals(mode) && DateFormat.is24HourFormat(this);
         Date now = new Date();
-        clock.setText(DateFormat.format(h24 ? "HH:mm" : "h:mm", now));
+        slide(clock, DateFormat.format(h24 ? "HH:mm" : "h:mm", now));
         Calendar c = Calendar.getInstance();
         String today = ISO.format(now);
         String lang = cfg.get(Config.LANGUAGE);
@@ -1107,6 +1109,24 @@ public final class Home extends Activity {
     /** Mithila's festival for today, if any, for the date line; none between midnight and 6 AM, when the panchang is still yesterday's. */
     private String panchangFestival() {
         return panchangDay == null || !ISO.format(new Date()).equals(panchangFor) ? null : Panchang.festival(panchangDay);
+    }
+
+    /** A new minute slides in from below while the old one slides up and away; no motion the first time or when hidden. */
+    private void slide(TextView t, CharSequence next) {
+        if (next.toString().contentEquals(t.getText())) return;
+        if (t.getText().length() == 0 || !resumed) {
+            t.setText(next);
+            return;
+        }
+        float d = dp(18);
+        t.animate().cancel();
+        t.animate().translationY(-d).alpha(0f).setDuration(220).setInterpolator(new android.view.animation.AccelerateInterpolator())
+                .withEndAction(() -> {
+                    t.setText(next);
+                    t.setTranslationY(d);
+                    t.animate().translationY(0f).alpha(1f).setDuration(320)
+                            .setInterpolator(new DecelerateInterpolator(2f)).withEndAction(null).start();
+                }).start();
     }
 
     /** One line, never cut: shrinks the text until it fits the width its column has. */
